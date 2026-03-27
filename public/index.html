@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI × IVR 師資生情緒管理訓練系統</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="header">
+    <h1>AI × IVR 師資生情緒管理訓練系統</h1>
+    <p class="subtitle">資料編輯與紀錄模組 · 使用者操作與資料反饋模組</p>
+  </header>
+
+  <nav class="nav">
+    <a href="/setting" class="nav-link active">首頁</a>
+    <a href="/setting/editing">編輯功能</a>
+    <a href="/setting/survey-editor">量表編輯（Survey.js）</a>
+    <a href="/setting/recording">紀錄功能</a>
+    <a href="/setting/feedback">操作與反饋</a>
+    <a href="/setting/instruction">指導語設定</a>
+    <a href="/setting/experiment-flow">實驗流程編輯</a>
+  </nav>
+
+  <main class="main">
+    <section class="card">
+      <h2>系統架構說明</h2>
+      <p>本網站實作 <strong>資料編輯與紀錄模組</strong> 與 <strong>使用者操作與資料反饋模組</strong>（Node.js 後端），並連接 MongoDB 以儲存設定與研究資料。IVR 教室互動模組（Unity）可透過 API 讀寫資料，本處不實作 Unity 端。</p>
+      <ul>
+        <li><strong>編輯功能</strong>：個人資料、量表問卷、Prompt 設定（虛擬學生人格特質、互動風格、情緒回應規則等）</li>
+        <li><strong>紀錄功能</strong>：統一介面寫入個人資料、問卷、情緒回饋、決策歷程、生理指標（瞳孔、GSR、心率）與歷程資料，均附時間戳記</li>
+        <li><strong>操作與反饋</strong>：情緒標註、多模態指標反饋、情緒察覺反思，並提供資料供 ChatGPT 分析</li>
+      </ul>
+      <div style="margin-top:1rem; display:flex; flex-wrap:wrap; gap:0.5rem;">
+        <a href="/experiment" target="_blank"><button type="button">進入實驗流程（/experiment）</button></a>
+        <a href="/setting" target="_blank"><button type="button">進入設定介面（/setting）</button></a>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>API 端點總覽</h2>
+      <p class="muted" style="margin-top:-0.5rem;">點任一列可查看用途、請求/回應範例，方便 Unity/外部程式直接串接。</p>
+      <table class="api-table">
+        <thead>
+          <tr><th>模組</th><th>方法</th><th>路徑</th><th>說明</th></tr>
+        </thead>
+        <tbody>
+          <tr class="api-row" data-api="editing_personal"><td>編輯</td><td>GET/POST/PUT/DELETE</td><td class="api-path">/api/editing/personal</td><td>個人資料 CRUD</td></tr>
+          <tr class="api-row" data-api="editing_scales"><td>編輯</td><td>GET/POST/PUT/DELETE</td><td class="api-path">/api/editing/scales</td><td>量表問卷 CRUD</td></tr>
+          <tr class="api-row" data-api="editing_prompts"><td>編輯</td><td>GET/POST/PUT/DELETE</td><td class="api-path">/api/editing/prompts</td><td>Prompt 設定 CRUD</td></tr>
+          <tr class="api-row" data-api="recording_write"><td>紀錄</td><td>POST</td><td class="api-path">/api/recording/write</td><td>統一寫入（type + payload）</td></tr>
+          <tr class="api-row" data-api="recording_physiological"><td>紀錄</td><td>POST</td><td class="api-path">/api/recording/physiological</td><td>生理指標（瞳孔、GSR、心率）</td></tr>
+          <tr class="api-row" data-api="recording_records"><td>紀錄</td><td>GET</td><td class="api-path">/api/recording/records</td><td>查詢紀錄（userId, type, from, to）</td></tr>
+          <tr class="api-row" data-api="feedback_emotion_annotation"><td>反饋</td><td>POST/GET</td><td class="api-path">/api/feedback/emotion-annotation</td><td>情緒標註</td></tr>
+          <tr class="api-row" data-api="feedback_multimodal_summary"><td>反饋</td><td>GET</td><td class="api-path">/api/feedback/multimodal-summary</td><td>多模態指標反饋</td></tr>
+          <tr class="api-row" data-api="feedback_reflection"><td>反饋</td><td>POST/GET</td><td class="api-path">/api/feedback/reflection</td><td>情緒察覺反思</td></tr>
+          <tr class="api-row" data-api="feedback_for_analysis"><td>反饋</td><td>GET</td><td class="api-path">/api/feedback/for-analysis</td><td>供 ChatGPT 分析之資料</td></tr>
+        </tbody>
+      </table>
+      <div id="api-detail" class="card" style="margin-top:1rem; display:none;">
+        <h3 style="margin-top:0;">API 範例</h3>
+        <div class="form-row" style="align-items:flex-end;">
+          <div class="form-group" style="flex:2; min-width:260px;">
+            <label>端點</label>
+            <input id="api-detail-endpoint" type="text" readonly>
+          </div>
+          <div class="form-group" style="flex:1; min-width:180px;">
+            <label>方法</label>
+            <input id="api-detail-method" type="text" readonly>
+          </div>
+          <div class="form-group" style="flex:1; min-width:180px;">
+            <button type="button" id="btn-copy-example">複製範例請求 JSON</button>
+          </div>
+        </div>
+        <p id="api-detail-desc" class="muted" style="margin-top:0;"></p>
+        <div class="form-group">
+          <label>請求範例（Body JSON）</label>
+          <div id="api-detail-request" class="pre"></div>
+        </div>
+        <div class="form-group">
+          <label>curl 範例</label>
+          <div id="api-detail-curl" class="pre"></div>
+        </div>
+        <div class="form-group">
+          <label>回應範例</label>
+          <div id="api-detail-response" class="pre"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>連線狀態</h2>
+      <p id="api-status">檢查中…</p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>MongoDB 3.4 · Node.js 後端 · 預設埠 3000</p>
+  </footer>
+
+  <script>
+    fetch('/api/editing/personal').then(r => r.json()).then(d => {
+      document.getElementById('api-status').textContent = 'API 連線正常，MongoDB 已就緒。';
+    }).catch(() => {
+      document.getElementById('api-status').textContent = '無法連線至後端 API，請確認 server 已啟動且 MongoDB 在 27017 運行。';
+    });
+
+    const apiExamples = {
+      editing_personal: {
+        endpoint: '/api/editing/personal',
+        method: 'POST',
+        desc: '建立/更新個人資料（以 userId 為鍵）。Unity 可在使用者登入或開始實驗時寫入。',
+        request: { userId: 'user001', name: '王小明', email: 'test@example.com', role: '師資生', metadata: { department: '教育系' } },
+        response: { success: true, data: { _id: '...', userId: 'user001', name: '王小明', email: 'test@example.com', role: '師資生', metadata: { department: '教育系' } } }
+      },
+      editing_scales: {
+        endpoint: '/api/editing/scales',
+        method: 'POST',
+        desc: '新增量表。推薦用 Survey.js 編輯器產生 surveyJson 後儲存；後端會自動同步產生 items 以相容既有資料流程。',
+        request: { title: '情緒量表', description: '實驗前後測', surveyJson: { title: '情緒量表', pages: [{ name: 'p1', elements: [{ type: 'radiogroup', name: 'q1', title: '我感到焦慮', choices: ['非常不同意','不同意','普通','同意','非常同意'] }] }] } },
+        response: { success: true, data: { _id: '...', title: '情緒量表', surveyJson: { /* ... */ } } }
+      },
+      editing_prompts: {
+        endpoint: '/api/editing/prompts',
+        method: 'POST',
+        desc: '新增 Prompt 設定（虛擬學生人格、互動風格、情緒回應規則等）。Unity 端可依情境讀取對應設定。',
+        request: { name: '情境A-高干擾', description: '學生不配合、情緒波動', roleParameters: { personalityTraits: ['反抗'], interactionStyle: '短句回覆', emotionalResponseRules: { anger: { threshold: 7 } } }, promptText: '你是一位課堂中的學生...' },
+        response: { success: true, data: { _id: '...', name: '情境A-高干擾', roleParameters: { /* ... */ } } }
+      },
+      recording_write: {
+        endpoint: '/api/recording/write',
+        method: 'POST',
+        desc: '統一寫入介面。用 type 指定資料型態，payload 需包含 userId；後端會補 timestamp 方便跨模態對齊。',
+        request: { type: 'physiological', payload: { userId: 'user001', sessionId: 's1', pupilDiameter: 3.5, gsr: 0.82, heartRate: 72 } },
+        response: { success: true, data: { _id: '...', type: 'physiological', userId: 'user001', sessionId: 's1', pupilDiameter: 3.5, gsr: 0.82, heartRate: 72, timestamp: '2026-03-12T00:00:00.000Z' } }
+      },
+      recording_physiological: {
+        endpoint: '/api/recording/physiological',
+        method: 'POST',
+        desc: '寫入生理指標（瞳孔直徑、GSR、心率）。建議每筆都帶 sessionId 與 timestamp（或讓後端自動補）。',
+        request: { userId: 'user001', sessionId: 's1', pupilDiameter: 3.5, gsr: 0.82, heartRate: 72, timestamp: new Date().toISOString() },
+        response: { success: true, data: { _id: '...', userId: 'user001', sessionId: 's1', pupilDiameter: 3.5, gsr: 0.82, heartRate: 72, timestamp: '...' } }
+      },
+      recording_records: {
+        endpoint: '/api/recording/records?userId=user001&type=physiological&limit=50',
+        method: 'GET',
+        desc: '查詢紀錄，可依 userId、sessionId、type 與時間範圍 from/to 篩選。用於資料回放、分析前取數。',
+        request: null,
+        response: { success: true, data: [{ /* ...最近一筆... */ }] }
+      },
+      feedback_emotion_annotation: {
+        endpoint: '/api/feedback/emotion-annotation',
+        method: 'POST',
+        desc: '情緒標註（使用者主觀標記）。target 可填 self/situation/other，強度 intensity 建議 1-10。',
+        request: { userId: 'user001', sessionId: 's1', target: 'self', emotionLabel: '焦慮', intensity: 7, note: '上台前覺得緊張' },
+        response: { success: true, data: { _id: '...', userId: 'user001', emotionLabel: '焦慮', intensity: 7, timestamp: '...' } }
+      },
+      feedback_multimodal_summary: {
+        endpoint: '/api/feedback/multimodal-summary?userId=user001&sessionId=s1',
+        method: 'GET',
+        desc: '多模態指標反饋：彙整情緒回饋、決策、生理、歷程與標註，方便在介面呈現或給分析模組使用。',
+        request: null,
+        response: { success: true, data: { emotions: [], decisions: [], physiological: [], processLogs: [], annotations: [] } }
+      },
+      feedback_reflection: {
+        endpoint: '/api/feedback/reflection',
+        method: 'POST',
+        desc: '情緒察覺反思：讓使用者以文字或結構化 responses 紀錄反思內容，可在結束情境後填寫。',
+        request: { userId: 'user001', sessionId: 's1', type: 'emotion_awareness', content: '我發現自己在被挑戰時會提高音量…', responses: { trigger: '學生頂嘴', strategy: '深呼吸' } },
+        response: { success: true, data: { _id: '...', userId: 'user001', content: '...', timestamp: '...' } }
+      },
+      feedback_for_analysis: {
+        endpoint: '/api/feedback/for-analysis?userId=user001&sessionId=s1',
+        method: 'GET',
+        desc: '提供分析用資料：回傳情緒、標註、反思、決策等時間序列，可直接給 ChatGPT 或其他分析服務處理。',
+        request: null,
+        response: { success: true, data: { emotions: [], annotations: [], reflections: [], decisions: [] } }
+      }
+    };
+
+    function setApiDetail(key) {
+      const ex = apiExamples[key];
+      if (!ex) return;
+      const detail = document.getElementById('api-detail');
+      detail.style.display = 'block';
+      document.getElementById('api-detail-endpoint').value = ex.endpoint;
+      document.getElementById('api-detail-method').value = ex.method;
+      document.getElementById('api-detail-desc').textContent = ex.desc;
+      document.getElementById('api-detail-request').textContent = ex.request ? JSON.stringify(ex.request, null, 2) : '（GET 無 body）';
+      const url = ex.endpoint.startsWith('http') ? ex.endpoint : (location.origin + ex.endpoint);
+      const curl = ex.method === 'GET'
+        ? `curl \"${url}\"`
+        : `curl -X ${ex.method} \"${url}\" -H \"Content-Type: application/json\" -d '${JSON.stringify(ex.request || {})}'`;
+      document.getElementById('api-detail-curl').textContent = curl;
+      document.getElementById('api-detail-response').textContent = JSON.stringify(ex.response, null, 2);
+      detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    document.querySelectorAll('.api-row').forEach(row => {
+      row.style.cursor = 'pointer';
+      row.title = '點擊查看範例';
+      row.addEventListener('click', () => setApiDetail(row.dataset.api));
+    });
+
+    document.getElementById('btn-copy-example').addEventListener('click', async () => {
+      const txt = document.getElementById('api-detail-request').textContent || '';
+      try {
+        await navigator.clipboard.writeText(txt);
+        const old = document.getElementById('btn-copy-example').textContent;
+        document.getElementById('btn-copy-example').textContent = '已複製';
+        setTimeout(() => (document.getElementById('btn-copy-example').textContent = old), 1200);
+      } catch (e) {
+        alert('複製失敗，請手動複製。');
+      }
+    });
+  </script>
+</body>
+</html>

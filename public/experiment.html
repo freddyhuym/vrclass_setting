@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>實驗流程 - 師資生情緒管理訓練系統</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .exp-container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+    .exp-header {
+      margin-bottom: 1rem;
+    }
+    .exp-meta {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 0.75rem;
+    }
+    .exp-instruction {
+      background: #ffffff;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 1.5rem;
+      min-height: 200px;
+    }
+    .exp-nav {
+      margin-top: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .exp-nav button[disabled] {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .exp-custom-frame {
+      width: 100%;
+      min-height: 500px;
+      border: none;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+    }
+    .exp-note {
+      margin-top: 0.75rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="exp-container">
+    <div class="exp-header">
+      <h1 id="exp-title">實驗流程</h1>
+      <p id="exp-meta" class="exp-meta"></p>
+    </div>
+
+    <div id="exp-content" class="exp-instruction">
+      載入中…
+    </div>
+
+    <p class="exp-note">
+      此頁僅示範如何依步驟設定載入指導語 / Survey key / 自訂頁面。Unity 或其他前端可呼叫
+      `/api/experiments/steps/{key}` 取得相同資訊，自行控制體驗流程。
+    </p>
+
+    <div class="exp-nav">
+      <button type="button" id="btn-prev">上一頁</button>
+      <button type="button" id="btn-next">下一頁</button>
+    </div>
+  </div>
+
+  <script>
+    const expApiBase = '/api/experiments';
+    const instApiBase = '/api/instructions';
+    let flow = [];
+    let currentKey = null;
+
+    function getStepIndex(key) {
+      return flow.findIndex(s => s.key === key);
+    }
+
+    function updateNavButtons() {
+      const idx = getStepIndex(currentKey);
+      document.getElementById('btn-prev').disabled = idx <= 0;
+      document.getElementById('btn-next').disabled = idx < 0 || idx >= flow.length - 1;
+    }
+
+    function goToStepByOffset(offset) {
+      const idx = getStepIndex(currentKey);
+      if (idx < 0) return;
+      const next = flow[idx + offset];
+      if (!next) return;
+      window.location.href = '/experiment/' + encodeURIComponent(next.key);
+    }
+
+    document.getElementById('btn-prev').addEventListener('click', () => goToStepByOffset(-1));
+    document.getElementById('btn-next').addEventListener('click', () => goToStepByOffset(1));
+
+    async function loadFlow() {
+      const r = await fetch(expApiBase + '/flow?flowKey=default');
+      const d = await r.json();
+      if (d.success && Array.isArray(d.data)) {
+        flow = d.data.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      } else {
+        flow = [];
+      }
+    }
+
+    function getCurrentStepFromUrl() {
+      const parts = window.location.pathname.split('/');
+      currentKey = decodeURIComponent(parts[parts.length - 1] || '');
+    }
+
+    async function loadStep() {
+      const res = await fetch(expApiBase + '/steps/' + encodeURIComponent(currentKey));
+      const d = await res.json();
+      if (!d.success || !d.data) {
+        document.getElementById('exp-title').textContent = '找不到步驟';
+        document.getElementById('exp-content').textContent = d.message || '請確認步驟 key 是否正確。';
+        return;
+      }
+      const step = d.data;
+      document.getElementById('exp-title').textContent = step.name || ('步驟 ' + step.key);
+      document.getElementById('exp-meta').textContent =
+        '步驟 key：' + step.key + ' · 類型：' + step.type +
+        (step.type === 'custom' && step.customPath ? ' · 自訂頁面：' + step.customPath : '') +
+        ((step.type === 'survey' || step.type === 'instruction') && step.refKey ? ' · 對應 key：' + step.refKey : '');
+
+      const container = document.getElementById('exp-content');
+
+      if (step.type === 'instruction' && step.refKey) {
+        try {
+          const r2 = await fetch(instApiBase + '/by-key/' + encodeURIComponent(step.refKey));
+          const d2 = await r2.json();
+          if (d2.success && d2.data) {
+            container.innerHTML = d2.data.html || '(指導語內容為空)';
+          } else {
+            container.textContent = d2.message || '找不到指導語：' + step.refKey;
+          }
+        } catch (e) {
+          container.textContent = '載入指導語時發生錯誤：' + e.message;
+        }
+      } else if (step.type === 'custom' && step.customPath) {
+        container.innerHTML = '';
+        const iframe = document.createElement('iframe');
+        iframe.className = 'exp-custom-frame';
+        iframe.src = step.customPath;
+        container.appendChild(iframe);
+      } else if (step.type === 'survey') {
+        container.innerHTML = `
+          <p>此步驟類型為 <strong>survey</strong>。</p>
+          <p>對應 key：<code>${step.refKey || '(未設定)'}</code></p>
+          <p class="muted">Unity 或其他前端可根據此 key 決定載入哪個量表、情境或 IVR 模擬。</p>
+        `;
+      } else {
+        container.textContent = '此步驟尚未設定完整（類型或 key/path 缺少）。';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      getCurrentStepFromUrl();
+      await loadFlow();
+      updateNavButtons();
+      await loadStep();
+    });
+  </script>
+</body>
+</html>
+

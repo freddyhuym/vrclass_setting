@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>指導語設定 - 師資生情緒管理訓練系統</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Quill 富文本編輯器 -->
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+  <style>
+    .editor-layout {
+      display: grid;
+      /* 左側清單較窄，右側編輯區約占 8+ 欄，全寬 RWD */
+      grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+      gap: 1.5rem;
+      align-items: flex-start;
+    }
+    @media (max-width: 900px) {
+      .editor-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+    .instruction-section {
+      margin-bottom: 1.5rem;
+    }
+    #editor-container {
+      background: #ffffff;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    #editor-toolbar {
+      border-bottom: 1px solid var(--border);
+      border-radius: 8px 8px 0 0;
+    }
+    #editor {
+      /* 預設高度，並允許使用者從右下角拖曳調整高度 */
+      min-height: 400px;
+      height: 640px;
+      resize: vertical;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h1>指導語設定</h1>
+    <p class="subtitle">建立可重複使用的指導語，後續實驗頁面可依 key 載入使用</p>
+  </header>
+  <nav class="nav">
+    <a href="/setting">首頁</a>
+    <a href="/setting/editing">編輯功能</a>
+    <a href="/setting/recording">紀錄功能</a>
+    <a href="/setting/feedback">操作與反饋</a>
+    <a href="/setting/survey-editor">量表編輯（Survey.js）</a>
+    <a href="/setting/instruction" class="nav-link active">指導語設定</a>
+    <a href="/setting/experiment-flow">實驗流程編輯</a>
+  </nav>
+
+  <main class="main main-wide">
+    <section class="instruction-section">
+      <h2>指導語管理</h2>
+      <div class="editor-layout">
+        <div>
+          <div class="form-group">
+            <label>已建立的指導語</label>
+            <select id="inst-select" size="6" style="width:100%; max-height:260px;">
+            </select>
+          </div>
+          <div class="form-group">
+            <label>搜尋（依名稱或 key）</label>
+            <input type="text" id="inst-search" placeholder="輸入關鍵字...">
+          </div>
+          <button type="button" id="btn-new">新增指導語</button>
+          <button type="button" id="btn-delete" class="danger" style="margin-left:0.5rem;">刪除</button>
+          <div id="inst-list-msg"></div>
+        </div>
+
+        <div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>名稱（必填，顯示用）</label>
+              <input type="text" id="inst-name" placeholder="例如：情境A - 前測指導語">
+            </div>
+            <div class="form-group">
+              <label>key（選填，程式用）</label>
+              <input type="text" id="inst-key" placeholder="例如：scenarioA_pre">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>說明（選填）</label>
+            <input type="text" id="inst-desc" placeholder="這段指導語使用情境備註">
+          </div>
+
+          <div class="form-group">
+            <label>指導語內容</label>
+            <div id="editor-container">
+              <div id="editor-toolbar">
+                <span class="ql-formats">
+                  <select class="ql-header">
+                    <option value="1"></option>
+                    <option value="2"></option>
+                    <option selected></option>
+                  </select>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-bold"></button>
+                  <button class="ql-italic"></button>
+                  <button class="ql-underline"></button>
+                </span>
+                <span class="ql-formats">
+                  <select class="ql-size">
+                    <option value="small"></option>
+                    <option selected></option>
+                    <option value="large"></option>
+                    <option value="huge"></option>
+                  </select>
+                  <select class="ql-color"></select>
+                  <select class="ql-background"></select>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-list" value="ordered"></button>
+                  <button class="ql-list" value="bullet"></button>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-align" value=""></button>
+                  <button class="ql-align" value="center"></button>
+                  <button class="ql-align" value="right"></button>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-link"></button>
+                  <button class="ql-image"></button>
+                  <button class="ql-video"></button>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-clean"></button>
+                </span>
+              </div>
+              <div id="editor"></div>
+            </div>
+          </div>
+
+          <button type="button" id="btn-save">儲存指導語</button>
+          <div id="inst-save-msg"></div>
+          <div class="form-group" style="margin-top:1rem;">
+            <label>給實驗頁面使用的載入方式（說明）</label>
+            <div class="pre" style="max-height:180px;">
+GET /api/instructions/by-key/&lt;key&gt;
+
+回傳範例：
+{
+  "success": true,
+  "data": {
+    "name": "情境A - 前測指導語",
+    "key": "scenarioA_pre",
+    "html": "&lt;p style='font-size:20px;color:#111827'&gt;請同學安靜閱讀以下指導語...&lt;/p&gt;"
+  }
+}
+
+前端可將 data.html 直接指定到某個容器的 innerHTML 顯示。
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+  <script>
+    const apiBase = '/api/instructions';
+    let currentId = null;
+    let allInstructions = [];
+    let quill;
+
+    function showMsg(el, text, isErr) {
+      el.innerHTML = text ? '<span class="msg ' + (isErr ? 'error' : 'success') + '">' + text + '</span>' : '';
+    }
+
+    async function loadInstructions(q) {
+      const params = q ? ('?q=' + encodeURIComponent(q)) : '';
+      const r = await fetch(apiBase + params);
+      const d = await r.json();
+      if (!d.success) throw new Error(d.message || '載入失敗');
+      allInstructions = d.data || [];
+      const sel = document.getElementById('inst-select');
+      sel.innerHTML = allInstructions.map(inst =>
+        '<option value="' + inst._id + '">' + (inst.name || '(未命名)') + (inst.key ? (' [' + inst.key + ']') : '') + '</option>'
+      ).join('');
+    }
+
+    function fillForm(inst) {
+      document.getElementById('inst-name').value = inst?.name || '';
+      document.getElementById('inst-key').value = inst?.key || '';
+      document.getElementById('inst-desc').value = inst?.description || '';
+      quill && quill.root && (quill.root.innerHTML = inst?.html || '');
+    }
+
+    document.getElementById('inst-search').addEventListener('input', (e) => {
+      const q = e.target.value.trim();
+      loadInstructions(q).catch(err => {
+        console.error(err);
+        showMsg(document.getElementById('inst-list-msg'), '載入失敗：' + err.message, true);
+      });
+    });
+
+    document.getElementById('inst-select').addEventListener('change', (e) => {
+      const id = e.target.value;
+      currentId = id || null;
+      const inst = allInstructions.find(i => i._id === id);
+      fillForm(inst || null);
+      showMsg(document.getElementById('inst-save-msg'), '');
+    });
+
+    document.getElementById('btn-new').addEventListener('click', () => {
+      currentId = null;
+      document.getElementById('inst-select').value = '';
+      fillForm(null);
+      showMsg(document.getElementById('inst-save-msg'), '已建立新的空白指導語，請輸入內容後按儲存。');
+    });
+
+    document.getElementById('btn-delete').addEventListener('click', async () => {
+      if (!currentId) {
+        showMsg(document.getElementById('inst-save-msg'), '請先選擇要刪除的指導語', true);
+        return;
+      }
+      if (!confirm('確定要刪除此指導語嗎？')) return;
+      try {
+        const r = await fetch(apiBase + '/' + currentId, { method: 'DELETE' });
+        const d = await r.json();
+        if (!d.success) throw new Error(d.message || '刪除失敗');
+        currentId = null;
+        await loadInstructions();
+        fillForm(null);
+        showMsg(document.getElementById('inst-save-msg'), '已刪除指導語。');
+      } catch (e) {
+        showMsg(document.getElementById('inst-save-msg'), '刪除失敗：' + e.message, true);
+      }
+    });
+
+    document.getElementById('btn-save').addEventListener('click', async () => {
+      const name = document.getElementById('inst-name').value.trim();
+      const key = document.getElementById('inst-key').value.trim() || undefined;
+      const description = document.getElementById('inst-desc').value.trim() || undefined;
+      const html = quill.root.innerHTML.trim();
+      if (!name) {
+        showMsg(document.getElementById('inst-save-msg'), '請填寫名稱', true);
+        return;
+      }
+      if (!html) {
+        showMsg(document.getElementById('inst-save-msg'), '請輸入指導語內容', true);
+        return;
+      }
+      try {
+        const payload = { name, key, description, html };
+        const url = currentId ? (apiBase + '/' + currentId) : apiBase;
+        const method = currentId ? 'PUT' : 'POST';
+        const r = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const d = await r.json();
+        if (!d.success) throw new Error(d.message || '儲存失敗');
+        currentId = d.data._id;
+        await loadInstructions(document.getElementById('inst-search').value.trim());
+        document.getElementById('inst-select').value = currentId;
+        showMsg(document.getElementById('inst-save-msg'), '已儲存指導語。');
+      } catch (e) {
+        showMsg(document.getElementById('inst-save-msg'), '儲存失敗：' + e.message, true);
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      quill = new Quill('#editor', {
+        theme: 'snow',
+        modules: {
+          toolbar: '#editor-toolbar'
+        }
+      });
+      quill.root.setAttribute('data-placeholder', '在此輸入指導語，可以調整字體大小、顏色、插入圖片或影片...');
+      loadInstructions().catch(err => {
+        console.error(err);
+        showMsg(document.getElementById('inst-list-msg'), '載入失敗：' + err.message, true);
+      });
+    });
+  </script>
+</body>
+</html>
+

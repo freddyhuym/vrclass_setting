@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>量表編輯（Survey.js）- 師資生情緒管理訓練系統</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- SurveyJS Form Library -->
+  <link href="https://unpkg.com/survey-core/survey-core.min.css" type="text/css" rel="stylesheet">
+  <script src="https://unpkg.com/survey-core/survey.core.min.js"></script>
+  <script src="https://unpkg.com/survey-js-ui/survey-js-ui.min.js"></script>
+  <!-- Survey Creator -->
+  <link href="https://unpkg.com/survey-creator-core/survey-creator-core.min.css" type="text/css" rel="stylesheet">
+  <script src="https://unpkg.com/survey-creator-core/survey-creator-core.min.js"></script>
+  <script src="https://unpkg.com/survey-creator-js/survey-creator-js.min.js"></script>
+  <style>
+    .survey-editor-bar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; padding: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+    .survey-editor-bar label { margin-right: 0.25rem; }
+    .survey-editor-bar select { min-width: 200px; }
+    .survey-editor-bar .btn { padding: 0.4rem 0.8rem; }
+    #surveyCreator { height: calc(100vh - 220px); min-height: 480px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #f8fafc; }
+    @media (max-width: 900px) {
+      .main.main-wide { padding: 1.5rem; }
+      #surveyCreator { height: auto; min-height: 400px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h1>量表問卷編輯（Survey.js）</h1>
+    <p class="subtitle">拖拉式編輯量表，儲存至伺服器</p>
+  </header>
+  <nav class="nav">
+    <a href="/setting">首頁</a>
+    <a href="/setting/editing">編輯功能</a>
+    <a href="/setting/recording">紀錄功能</a>
+    <a href="/setting/feedback">操作與反饋</a>
+    <a href="/setting/survey-editor" class="nav-link active">量表編輯（Survey.js）</a>
+    <a href="/setting/instruction">指導語設定</a>
+    <a href="/setting/experiment-flow">實驗流程編輯</a>
+  </nav>
+
+  <main class="main main-wide">
+    <div class="survey-editor-bar">
+      <label>選擇量表：</label>
+      <select id="scaleSelect">
+        <option value="">— 請選擇或新增 —</option>
+      </select>
+      <button type="button" class="btn" id="btnLoad">載入</button>
+      <span style="color: var(--muted);">|</span>
+      <label>新量表標題（新增時填）：</label>
+      <input type="text" id="newTitle" placeholder="量表名稱" style="min-width:180px">
+      <button type="button" class="btn" id="btnSave">儲存至伺服器</button>
+      <span id="saveMsg"></span>
+    </div>
+    <div id="surveyCreator"></div>
+  </main>
+
+  <script>
+    const API = '/api/editing/scales';
+    const defaultJson = {
+      title: '新量表',
+      pages: [{
+        name: 'page1',
+        title: '第一頁',
+        elements: [{ type: 'text', name: 'q1', title: '請輸入：' }]
+      }]
+    };
+
+    const creatorOptions = {
+      autoSaveEnabled: false,
+      collapseOnDrag: true,
+      showLogicTab: true
+    };
+    const creator = new SurveyCreator.SurveyCreator(creatorOptions);
+    creator.text = JSON.stringify(defaultJson);
+
+    let currentScaleId = null;
+    let scaleList = [];
+
+    function showSaveMsg(text, isErr) {
+      const el = document.getElementById('saveMsg');
+      el.innerHTML = text ? '<span class="msg ' + (isErr ? 'error' : 'success') + '">' + text + '</span>' : '';
+    }
+
+    function renderScaleSelect() {
+      const sel = document.getElementById('scaleSelect');
+      sel.innerHTML = '<option value="">— 請選擇或新增 —</option>' +
+        scaleList.map(s => '<option value="' + s._id + '">' + (s.title || s._id) + '</option>').join('');
+    }
+
+    async function loadScales() {
+      try {
+        const r = await fetch(API);
+        const d = await r.json();
+        if (d.success && Array.isArray(d.data)) {
+          scaleList = d.data;
+          renderScaleSelect();
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    document.getElementById('btnLoad').addEventListener('click', async () => {
+      const id = document.getElementById('scaleSelect').value;
+      if (!id) {
+        creator.text = JSON.stringify(defaultJson);
+        currentScaleId = null;
+        showSaveMsg('已清空為新量表，請填「新量表標題」後按儲存可新增。');
+        return;
+      }
+      try {
+        const r = await fetch(API + '/' + id);
+        const d = await r.json();
+        if (d.success && d.data) {
+          currentScaleId = d.data._id;
+          const json = d.data.surveyJson || (d.data.items && d.data.items.length
+            ? { title: d.data.title, pages: [{ name: 'p1', elements: d.data.items.map((it, i) => ({
+                type: it.type === 'single' ? 'radiogroup' : it.type === 'multiple' ? 'checkbox' : 'text',
+                name: 'q' + i,
+                title: it.question,
+                choices: (it.options || []).map(o => ({ value: o, text: o }))
+              })) }] }
+            : defaultJson);
+          creator.JSON = json && json.pages ? json : defaultJson;
+          showSaveMsg('已載入：「' + (d.data.title || id) + '」');
+        } else {
+          showSaveMsg('載入失敗', true);
+        }
+      } catch (e) {
+        showSaveMsg('載入失敗：' + e.message, true);
+      }
+    });
+
+    document.getElementById('btnSave').addEventListener('click', async () => {
+      const title = document.getElementById('newTitle').value.trim() || (currentScaleId && scaleList.find(s => s._id === currentScaleId)?.title) || '未命名量表';
+      const surveyJson = creator.JSON;
+      try {
+        if (currentScaleId) {
+          const r = await fetch(API + '/' + currentScaleId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, surveyJson, updatedAt: new Date() })
+          });
+          const d = await r.json();
+          if (d.success) {
+            showSaveMsg('已更新：「' + title + '」');
+            loadScales();
+          } else {
+            showSaveMsg(d.message || '儲存失敗', true);
+          }
+        } else {
+          const r = await fetch(API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, surveyJson })
+          });
+          const d = await r.json();
+          if (d.success && d.data && d.data._id) {
+            currentScaleId = d.data._id;
+            scaleList.push(d.data);
+            renderScaleSelect();
+            document.getElementById('scaleSelect').value = currentScaleId;
+            showSaveMsg('已新增：「' + title + '」');
+          } else {
+            showSaveMsg(d.message || '新增失敗', true);
+          }
+        }
+      } catch (e) {
+        showSaveMsg('請求失敗：' + e.message, true);
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadScales();
+      const qs = new URLSearchParams(location.search);
+      const id = qs.get('id');
+      if (id) {
+        document.getElementById('scaleSelect').value = id;
+        currentScaleId = id;
+        document.getElementById('btnLoad').click();
+      }
+      creator.render(document.getElementById('surveyCreator'));
+    });
+  </script>
+</body>
+</html>

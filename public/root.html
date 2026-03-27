@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI × IVR 師資生情緒管理訓練系統 - 入口</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .root-container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+      text-align: center;
+    }
+    .root-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .root-buttons a button {
+      min-width: 200px;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h1>AI × IVR 師資生情緒管理訓練系統</h1>
+    <p class="subtitle">請選擇要進入的模式</p>
+  </header>
+
+  <main class="root-container">
+    <p>這裡是系統入口。你可以選擇進入「實驗流程」或「設定介面」，會在新分頁開啟：</p>
+    <div class="root-buttons">
+      <a href="/experiment" target="_blank">
+        <button type="button">進入實驗流程（/experiment）</button>
+      </a>
+      <a href="/setting" target="_blank">
+        <button type="button">進入設定介面（/setting）</button>
+      </a>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>MongoDB 3.4 · Node.js 後端 · 預設埠 3000</p>
+  </footer>
+</body>
+</html>
+

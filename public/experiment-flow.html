@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>實驗流程編輯 - 師資生情緒管理訓練系統</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .flow-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    .flow-table th, .flow-table td {
+      padding: 0.4rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .flow-table th {
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .flow-row-actions button {
+      margin-right: 0.25rem;
+    }
+    .flow-type-select, .flow-input {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h1>實驗流程編輯</h1>
+    <p class="subtitle">設定實驗步驟順序，每一步可指定 Survey key、指導語 key 或自訂 HTML 頁面。</p>
+  </header>
+  <nav class="nav">
+    <a href="/setting">首頁</a>
+    <a href="/setting/editing">編輯功能</a>
+    <a href="/setting/recording">紀錄功能</a>
+    <a href="/setting/feedback">操作與反饋</a>
+    <a href="/setting/survey-editor">量表編輯</a>
+    <a href="/setting/instruction">指導語設定</a>
+    <a href="/setting/experiment-flow" class="nav-link active">實驗流程編輯</a>
+  </nav>
+
+  <main class="main main-wide">
+    <section class="card">
+      <h2>流程步驟（預設流程 default）</h2>
+      <p class="muted">每個步驟的 <strong>步驟 key</strong> 會對應網址 `/experiment/{步驟 key}`。<br>
+        - 類型為 <strong>survey</strong> 時，請在「對應 key / 路徑」填入量表或情境的 key。<br>
+        - 類型為 <strong>instruction</strong> 時，填入指導語的 key（`Instruction.key`）。<br>
+        - 類型為 <strong>custom</strong> 時，填入自訂 HTML 路徑，例如 `/custom/intro.html`。</p>
+      <div style="margin-bottom:0.75rem;">
+        <button type="button" id="btn-add-step">新增步驟</button>
+        <button type="button" id="btn-save-flow" style="margin-left:0.5rem;">儲存流程</button>
+        <span id="flow-msg"></span>
+      </div>
+      <table class="flow-table">
+        <thead>
+          <tr>
+            <th style="width:50px;">順序</th>
+            <th style="width:140px;">步驟 key</th>
+            <th style="width:180px;">名稱（顯示用）</th>
+            <th style="width:130px;">類型</th>
+            <th>對應 key / 路徑</th>
+            <th style="width:140px;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="flow-tbody">
+        </tbody>
+      </table>
+      <div class="pre" style="margin-top:1rem;max-height:180px;overflow:auto;">
+執行時行為說明：
+- 入口 `/experiment` 會自動導向預設流程（flowKey = default）的第一個步驟 `/experiment/{步驟 key}`。
+- 實驗頁 `/experiment/{步驟 key}` 會呼叫 `/api/experiments/steps/{key}` 取得設定：
+  - type = "instruction" 時，可再呼叫 `/api/instructions/by-key/{refKey}` 取得指導語 HTML。
+  - type = "survey" 時，前端/Unity 可依 `refKey` 決定載入哪個量表或情境。
+  - type = "custom" 時，可透過 `customPath` 載入自訂頁面。
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const apiBase = '/api/experiments';
+    let steps = [];
+    let instructionOptions = [];
+    let scaleOptions = [];
+
+    function showMsg(text, isErr) {
+      const el = document.getElementById('flow-msg');
+      el.innerHTML = text ? '<span class="msg ' + (isErr ? 'error' : 'success') + '">' + text + '</span>' : '';
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('flow-tbody');
+      tbody.innerHTML = '';
+      steps
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .forEach((step, index) => {
+          const tr = document.createElement('tr');
+          tr.dataset.index = index;
+          let targetCell = '';
+          if (step.type === 'instruction') {
+            const opts = instructionOptions.map(inst => {
+              const value = inst.key || '';
+              const label = (inst.name || '(未命名)') + (inst.key ? ` [${inst.key}]` : '');
+              const selected = value && value === (step.refKey || '') ? ' selected' : '';
+              return `<option value="${value}"${selected}>${label}</option>`;
+            }).join('');
+            targetCell = `<select class="flow-input" data-field="target-select">${opts}</select>`;
+          } else if (step.type === 'survey') {
+            const opts = scaleOptions.map(sc => {
+              const value = sc._id || '';
+              const label = (sc.title || sc._id || '(未命名量表)') + (sc._id ? ` [${sc._id}]` : '');
+              const selected = value && value === (step.refKey || '') ? ' selected' : '';
+              return `<option value="${value}"${selected}>${label}</option>`;
+            }).join('');
+            targetCell = `<select class="flow-input" data-field="target-select">${opts}</select>`;
+          } else {
+            targetCell = `<input class="flow-input" value="${step.customPath || ''}" data-field="target-input" placeholder="/custom/intro.html">`;
+          }
+          tr.innerHTML = `
+            <td>${index + 1}</td>
+            <td><input class="flow-input" value="${step.key || ''}" data-field="key"></td>
+            <td><input class="flow-input" value="${step.name || ''}" data-field="name"></td>
+            <td>
+              <select class="flow-type-select" data-field="type">
+                <option value="survey"${step.type === 'survey' ? ' selected' : ''}>survey</option>
+                <option value="instruction"${step.type === 'instruction' ? ' selected' : ''}>instruction</option>
+                <option value="custom"${step.type === 'custom' ? ' selected' : ''}>custom</option>
+              </select>
+            </td>
+            <td>${targetCell}</td>
+            <td class="flow-row-actions">
+              <button type="button" data-action="up">上移</button>
+              <button type="button" data-action="down">下移</button>
+              <button type="button" data-action="delete" class="danger">刪除</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+    }
+
+    function syncFromDom() {
+      const rows = Array.from(document.querySelectorAll('#flow-tbody tr'));
+      steps = rows.map((tr, idx) => {
+        const key = tr.querySelector('input[data-field="key"]').value.trim();
+        const name = tr.querySelector('input[data-field="name"]').value.trim();
+        const type = tr.querySelector('select[data-field="type"]').value;
+        const base = { key, name, type, order: idx, flowKey: 'default', active: true };
+        if (type === 'custom') {
+          const targetInput = tr.querySelector('input[data-field="target-input"]');
+          const target = targetInput ? targetInput.value.trim() : '';
+          base.customPath = target || undefined;
+          base.refKey = undefined;
+        } else {
+          const sel = tr.querySelector('select[data-field="target-select"]');
+          const target = sel ? sel.value.trim() : '';
+          base.refKey = target || undefined;
+          base.customPath = undefined;
+        }
+        return base;
+      });
+    }
+
+    document.getElementById('btn-add-step').addEventListener('click', () => {
+      steps.push({
+        key: 'step' + (steps.length + 1),
+        name: '新步驟 ' + (steps.length + 1),
+        type: 'instruction',
+        refKey: '',
+        customPath: '',
+        order: steps.length,
+        flowKey: 'default',
+        active: true
+      });
+      renderTable();
+    });
+
+    document.getElementById('flow-tbody').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const tr = btn.closest('tr');
+      const index = parseInt(tr.dataset.index, 10);
+      if (Number.isNaN(index)) return;
+      if (action === 'delete') {
+        steps.splice(index, 1);
+      } else if (action === 'up' && index > 0) {
+        [steps[index - 1], steps[index]] = [steps[index], steps[index - 1]];
+      } else if (action === 'down' && index < steps.length - 1) {
+        [steps[index + 1], steps[index]] = [steps[index], steps[index + 1]];
+      }
+      renderTable();
+    });
+
+    // 當類型改變時，重新渲染該列以切換對應下拉選單/輸入框
+    document.getElementById('flow-tbody').addEventListener('change', (e) => {
+      const sel = e.target.closest('select[data-field="type"]');
+      if (!sel) return;
+      const tr = sel.closest('tr');
+      const index = parseInt(tr.dataset.index, 10);
+      if (Number.isNaN(index)) return;
+      steps[index].type = sel.value;
+      renderTable();
+    });
+
+    document.getElementById('btn-save-flow').addEventListener('click', async () => {
+      syncFromDom();
+      const invalid = steps.find(s => !s.key || !s.name || !s.type);
+      if (invalid) {
+        showMsg('每個步驟需要填寫「步驟 key、名稱與類型」。', true);
+        return;
+      }
+      try {
+        const r = await fetch(apiBase + '/flow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ flowKey: 'default', steps })
+        });
+        const d = await r.json();
+        if (!d.success) throw new Error(d.message || '儲存失敗');
+        showMsg('已儲存實驗流程。', false);
+      } catch (e) {
+        showMsg('儲存失敗：' + e.message, true);
+      }
+    });
+
+    async function loadFlow() {
+      try {
+        const r = await fetch(apiBase + '/flow?flowKey=default');
+        const d = await r.json();
+        steps = d.success && Array.isArray(d.data) ? d.data : [];
+      } catch (e) {
+        steps = [];
+        console.error(e);
+      }
+      renderTable();
+    }
+
+    async function loadOptions() {
+      try {
+        const [instRes, scaleRes] = await Promise.all([
+          fetch('/api/instructions'),
+          fetch('/api/editing/scales')
+        ]);
+        const instData = await instRes.json();
+        const scaleData = await scaleRes.json();
+        if (instData.success && Array.isArray(instData.data)) {
+          instructionOptions = instData.data;
+        }
+        if (scaleData.success && Array.isArray(scaleData.data)) {
+          scaleOptions = scaleData.data;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadOptions();
+      await loadFlow();
+    });
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>紀錄功能 - 師資生情緒管理訓練系統</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="header">
+    <h1>資料編輯與紀錄模組 · 紀錄功能</h1>
+    <p class="subtitle">統一介面寫入研究資料，附時間戳記；個人資料、問卷、情緒、決策、生理指標、歷程</p>
+  </header>
+  <nav class="nav">
+    <a href="/setting">首頁</a>
+    <a href="/setting/editing">編輯功能</a>
+    <a href="/setting/recording" class="nav-link active">紀錄功能</a>
+    <a href="/setting/feedback">操作與反饋</a>
+    <a href="/setting/survey-editor">量表編輯（Survey.js）</a>
+    <a href="/setting/instruction">指導語設定</a>
+    <a href="/setting/experiment-flow">實驗流程編輯</a>
+  </nav>
+
+  <main class="main">
+    <section class="card">
+      <h2>統一寫入介面</h2>
+      <p>POST /api/recording/write — body: <code>{ "type": "physiological|emotion_feedback|scale_response|decision|process|personal", "payload": { ... } }</code>，payload 會自動加上 timestamp。</p>
+      <div class="form-group">
+        <label>type</label>
+        <select id="write-type">
+          <option value="physiological">physiological（生理）</option>
+          <option value="emotion_feedback">emotion_feedback（情緒回饋）</option>
+          <option value="scale_response">scale_response（問卷）</option>
+          <option value="decision">decision（決策）</option>
+          <option value="process">process（歷程）</option>
+          <option value="personal">personal（個人）</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>payload（JSON，需含 userId；生理請含 pupilDiameter / gsr / heartRate）</label>
+        <textarea id="write-payload" rows="8">{"userId":"user001","sessionId":"s1","pupilDiameter":3.5,"gsr":0.8,"heartRate":72}</textarea>
+      </div>
+      <button type="button" id="btn-write">寫入</button>
+      <div id="write-msg"></div>
+    </section>
+
+    <section class="card">
+      <h2>快速寫入：生理指標</h2>
+      <p>瞳孔直徑、膚電反應 GSR、心率，附時間戳記以利跨模態對齊。</p>
+      <div class="form-row">
+        <div class="form-group"><label>userId</label><input type="text" id="phy-userId" value="user001"></div>
+        <div class="form-group"><label>sessionId</label><input type="text" id="phy-sessionId" placeholder="選填"></div>
+        <div class="form-group"><label>瞳孔直徑</label><input type="number" id="phy-pupil" step="0.1" placeholder="3.5"></div>
+        <div class="form-group"><label>GSR</label><input type="number" id="phy-gsr" step="0.01" placeholder="0.8"></div>
+        <div class="form-group"><label>心率 HR</label><input type="number" id="phy-hr" placeholder="72"></div>
+      </div>
+      <button type="button" id="btn-physiological">寫入生理資料</button>
+      <div id="phy-msg"></div>
+    </section>
+
+    <section class="card">
+      <h2>查詢紀錄</h2>
+      <div class="form-row">
+        <div class="form-group"><label>userId</label><input type="text" id="q-userId" placeholder="user001"></div>
+        <div class="form-group"><label>type</label>
+          <select id="q-type">
+            <option value="">全部</option>
+            <option value="emotion_feedback">emotion_feedback</option>
+            <option value="scale_response">scale_response</option>
+            <option value="decision">decision</option>
+            <option value="physiological">physiological</option>
+            <option value="process">process</option>
+          </select>
+        </div>
+        <div class="form-group"><label>from（時間）</label><input type="datetime-local" id="q-from"></div>
+        <div class="form-group"><label>to（時間）</label><input type="datetime-local" id="q-to"></div>
+      </div>
+      <button type="button" id="btn-query">查詢</button>
+      <div id="query-result" class="pre" style="margin-top:1rem;max-height:400px;overflow:auto;"></div>
+    </section>
+  </main>
+
+  <script>
+    const base = '';
+    function showMsg(el, text, isErr) {
+      el.innerHTML = '<span class="msg ' + (isErr ? 'error' : 'success') + '">' + text + '</span>';
+    }
+
+    document.getElementById('btn-write').addEventListener('click', async () => {
+      let payload = {};
+      try { payload = JSON.parse(document.getElementById('write-payload').value); } catch (e) {
+        showMsg(document.getElementById('write-msg'), 'payload 請使用合法 JSON', true);
+        return;
+      }
+      const type = document.getElementById('write-type').value;
+      try {
+        const r = await fetch(base + '/api/recording/write', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, payload })
+        });
+        const d = await r.json();
+        showMsg(document.getElementById('write-msg'), d.success ? '寫入成功' : (d.message || '失敗'), !d.success);
+      } catch (e) {
+        showMsg(document.getElementById('write-msg'), '請求失敗：' + e.message, true);
+      }
+    });
+
+    document.getElementById('btn-physiological').addEventListener('click', async () => {
+      const userId = document.getElementById('phy-userId').value.trim();
+      if (!userId) { showMsg(document.getElementById('phy-msg'), '請填 userId', true); return; }
+      try {
+        const r = await fetch(base + '/api/recording/physiological', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            sessionId: document.getElementById('phy-sessionId').value.trim() || undefined,
+            pupilDiameter: parseFloat(document.getElementById('phy-pupil').value) || undefined,
+            gsr: parseFloat(document.getElementById('phy-gsr').value) || undefined,
+            heartRate: parseInt(document.getElementById('phy-hr').value, 10) || undefined,
+            timestamp: new Date().toISOString()
+          })
+        });
+        const d = await r.json();
+        showMsg(document.getElementById('phy-msg'), d.success ? '已寫入生理資料' : (d.message || '失敗'), !d.success);
+      } catch (e) {
+        showMsg(document.getElementById('phy-msg'), '請求失敗：' + e.message, true);
+      }
+    });
+
+    document.getElementById('btn-query').addEventListener('click', async () => {
+      const params = new URLSearchParams();
+      const userId = document.getElementById('q-userId').value.trim();
+      const type = document.getElementById('q-type').value;
+      const from = document.getElementById('q-from').value;
+      const to = document.getElementById('q-to').value;
+      if (userId) params.set('userId', userId);
+      if (type) params.set('type', type);
+      if (from) params.set('from', new Date(from).toISOString());
+      if (to) params.set('to', new Date(to).toISOString());
+      params.set('limit', '50');
+      try {
+        const r = await fetch(base + '/api/recording/records?' + params);
+        const d = await r.json();
+        document.getElementById('query-result').textContent = JSON.stringify(d.data, null, 2);
+      } catch (e) {
+        document.getElementById('query-result').textContent = '錯誤：' + e.message;
+      }
+    });
+  </script>
+</body>
+</html>

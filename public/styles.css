@@ -1,0 +1,118 @@
+:root {
+  /* 淡色系主題 */
+  --bg: #f6f8fc;
+  --surface: #ffffff;
+  --border: #e6eaf2;
+  --text: #111827;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --success: #16a34a;
+  --danger: #dc2626;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 1.5rem 2rem;
+}
+.header h1 { margin: 0 0 0.25rem 0; font-size: 1.5rem; }
+.subtitle { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+.nav {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 2rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.nav-link {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  transition: color .2s, background .2s;
+}
+.nav-link:hover { color: var(--accent); }
+.nav-link.active { color: var(--accent); background: rgba(37,99,235,.10); }
+
+.main { max-width: 960px; margin: 0 auto; padding: 2rem; }
+.main-wide {
+  max-width: 100%;
+  padding: 1.5rem 2.5rem;
+  margin: 0;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.card h2 { margin-top: 0; font-size: 1.2rem; }
+.card ul { margin: 0.5rem 0 0 1.2rem; }
+.card li { margin-bottom: 0.35rem; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+
+.api-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.api-table th, .api-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.api-table th { color: var(--muted); font-weight: 600; }
+.api-row:hover { background: #f3f4f6; }
+.api-path { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace; }
+
+.footer {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+/* Forms & buttons */
+input, select, textarea, button {
+  font: inherit;
+  color: var(--text);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+button {
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+}
+button:hover { opacity: 0.9; }
+button.danger { background: var(--danger); }
+label { display: block; margin-bottom: 0.25rem; color: var(--muted); font-size: 0.9rem; }
+.form-group { margin-bottom: 1rem; }
+.form-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+.form-row .form-group { flex: 1; min-width: 140px; }
+
+.tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
+.tabs button { background: #f3f4f6; color: var(--muted); border: 1px solid var(--border); }
+.tabs button.active { background: var(--accent); color: #fff; }
+
+.pre { background: #f8fafc; border: 1px solid var(--border); padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; white-space: pre-wrap; word-break: break-all; }
+.msg { padding: 0.5rem 0.75rem; border-radius: 6px; margin-top: 0.5rem; }
+.msg.success { background: rgba(22,163,74,.10); color: var(--success); border: 1px solid rgba(22,163,74,.25); }
+.msg.error { background: rgba(220,38,38,.08); color: var(--danger); border: 1px solid rgba(220,38,38,.22); }

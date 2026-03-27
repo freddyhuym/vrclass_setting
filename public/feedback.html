@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>操作與反饋 - 師資生情緒管理訓練系統</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="header">
+    <h1>使用者操作與資料反饋模組</h1>
+    <p class="subtitle">情緒標註、多模態指標反饋、情緒察覺反思；並提供資料供 ChatGPT 分析</p>
+  </header>
+  <nav class="nav">
+    <a href="/setting">首頁</a>
+    <a href="/setting/editing">編輯功能</a>
+    <a href="/setting/recording">紀錄功能</a>
+    <a href="/setting/feedback" class="nav-link active">操作與反饋</a>
+    <a href="/setting/survey-editor">量表編輯（Survey.js）</a>
+    <a href="/setting/instruction">指導語設定</a>
+    <a href="/setting/experiment-flow">實驗流程編輯</a>
+  </nav>
+
+  <main class="main">
+    <section class="card">
+      <h2>情緒標註</h2>
+      <p>POST /api/feedback/emotion-annotation</p>
+      <div class="form-row">
+        <div class="form-group"><label>userId</label><input type="text" id="ann-userId" value="user001"></div>
+        <div class="form-group"><label>標註對象</label>
+          <select id="ann-target">
+            <option value="self">自己</option>
+            <option value="situation">情境</option>
+            <option value="other">其他</option>
+          </select>
+        </div>
+        <div class="form-group"><label>情緒標籤</label><input type="text" id="ann-label" placeholder="例如：焦慮、平靜"></div>
+        <div class="form-group"><label>強度 (1-10)</label><input type="number" id="ann-intensity" min="1" max="10" value="5"></div>
+      </div>
+      <div class="form-group">
+        <label>備註</label>
+        <textarea id="ann-note" rows="2" placeholder="選填"></textarea>
+      </div>
+      <button type="button" id="btn-annotation">送出標註</button>
+      <div id="ann-msg"></div>
+    </section>
+
+    <section class="card">
+      <h2>情緒察覺反思</h2>
+      <p>POST /api/feedback/reflection</p>
+      <div class="form-group">
+        <label>userId</label>
+        <input type="text" id="ref-userId" value="user001">
+      </div>
+      <div class="form-group">
+        <label>反思內容</label>
+        <textarea id="ref-content" rows="4" placeholder="描述當下的情緒察覺與反思..."></textarea>
+      </div>
+      <button type="button" id="btn-reflection">送出反思</button>
+      <div id="ref-msg"></div>
+    </section>
+
+    <section class="card">
+      <h2>多模態指標反饋</h2>
+      <p>GET /api/feedback/multimodal-summary — 彙整情緒、決策、生理、歷程、標註。</p>
+      <div class="form-row">
+        <div class="form-group"><label>userId</label><input type="text" id="mm-userId" value="user001"></div>
+        <div class="form-group"><label>sessionId</label><input type="text" id="mm-sessionId" placeholder="選填"></div>
+      </div>
+      <button type="button" id="btn-multimodal">取得反饋摘要</button>
+      <div id="mm-result" class="pre" style="margin-top:1rem;max-height:400px;overflow:auto;"></div>
+    </section>
+
+    <section class="card">
+      <h2>供 ChatGPT 分析之資料</h2>
+      <p>GET /api/feedback/for-analysis?userId=... — 回傳情緒、標註、反思、決策等時間序列，供外部分析。</p>
+      <div class="form-group">
+        <label>userId</label>
+        <input type="text" id="ana-userId" value="user001">
+      </div>
+      <button type="button" id="btn-analysis">取得分析用資料</button>
+      <div id="ana-result" class="pre" style="margin-top:1rem;max-height:400px;overflow:auto;"></div>
+    </section>
+  </main>
+
+  <script>
+    const base = '';
+    function showMsg(el, text, isErr) {
+      el.innerHTML = '<span class="msg ' + (isErr ? 'error' : 'success') + '">' + text + '</span>';
+    }
+
+    document.getElementById('btn-annotation').addEventListener('click', async () => {
+      const userId = document.getElementById('ann-userId').value.trim();
+      if (!userId) { showMsg(document.getElementById('ann-msg'), '請填 userId', true); return; }
+      try {
+        const r = await fetch(base + '/api/feedback/emotion-annotation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            target: document.getElementById('ann-target').value,
+            emotionLabel: document.getElementById('ann-label').value.trim(),
+            intensity: parseInt(document.getElementById('ann-intensity').value, 10) || 5,
+            note: document.getElementById('ann-note').value.trim()
+          })
+        });
+        const d = await r.json();
+        showMsg(document.getElementById('ann-msg'), d.success ? '已送出情緒標註' : (d.message || '失敗'), !d.success);
+      } catch (e) {
+        showMsg(document.getElementById('ann-msg'), '請求失敗：' + e.message, true);
+      }
+    });
+
+    document.getElementById('btn-reflection').addEventListener('click', async () => {
+      const userId = document.getElementById('ref-userId').value.trim();
+      const content = document.getElementById('ref-content').value.trim();
+      if (!userId) { showMsg(document.getElementById('ref-msg'), '請填 userId', true); return; }
+      if (!content) { showMsg(document.getElementById('ref-msg'), '請填反思內容', true); return; }
+      try {
+        const r = await fetch(base + '/api/feedback/reflection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, content })
+        });
+        const d = await r.json();
+        showMsg(document.getElementById('ref-msg'), d.success ? '已送出反思' : (d.message || '失敗'), !d.success);
+      } catch (e) {
+        showMsg(document.getElementById('ref-msg'), '請求失敗：' + e.message, true);
+      }
+    });
+
+    document.getElementById('btn-multimodal').addEventListener('click', async () => {
+      const userId = document.getElementById('mm-userId').value.trim();
+      if (!userId) { document.getElementById('mm-result').textContent = '請填 userId'; return; }
+      const params = new URLSearchParams({ userId });
+      const sessionId = document.getElementById('mm-sessionId').value.trim();
+      if (sessionId) params.set('sessionId', sessionId);
+      try {
+        const r = await fetch(base + '/api/feedback/multimodal-summary?' + params);
+        const d = await r.json();
+        document.getElementById('mm-result').textContent = JSON.stringify(d.data, null, 2);
+      } catch (e) {
+        document.getElementById('mm-result').textContent = '錯誤：' + e.message;
+      }
+    });
+
+    document.getElementById('btn-analysis').addEventListener('click', async () => {
+      const userId = document.getElementById('ana-userId').value.trim();
+      if (!userId) { document.getElementById('ana-result').textContent = '請填 userId'; return; }
+      try {
+        const r = await fetch(base + '/api/feedback/for-analysis?userId=' + encodeURIComponent(userId));
+        const d = await r.json();
+        document.getElementById('ana-result').textContent = JSON.stringify(d.data, null, 2);
+      } catch (e) {
+        document.getElementById('ana-result').textContent = '錯誤：' + e.message;
+      }
+    });
+  </script>
+</body>
+</html>

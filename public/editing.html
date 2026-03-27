@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>編輯功能 - 師資生情緒管理訓練系統</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="header">
+    <h1>資料編輯與紀錄模組 · 編輯功能</h1>
+    <p class="subtitle">個人資料、量表問卷、Prompt 設定（虛擬學生人格、互動風格、情緒回應規則）</p>
+  </header>
+  <nav class="nav">
+    <a href="/setting">首頁</a>
+    <a href="/setting/editing" class="nav-link active">編輯功能</a>
+    <a href="/setting/recording">紀錄功能</a>
+    <a href="/setting/feedback">操作與反饋</a>
+    <a href="/setting/survey-editor">量表編輯（Survey.js）</a>
+    <a href="/setting/instruction">指導語設定</a>
+    <a href="/setting/experiment-flow">實驗流程編輯</a>
+  </nav>
+
+  <main class="main">
+    <div class="tabs">
+      <button type="button" class="tab-btn active" data-tab="personal">個人資料</button>
+      <button type="button" class="tab-btn" data-tab="scales">量表問卷</button>
+      <button type="button" class="tab-btn" data-tab="prompts">Prompt 設定</button>
+    </div>
+
+    <section id="tab-personal" class="card tab-panel">
+      <h2>個人資料</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>使用者 ID</label>
+          <input type="text" id="p-userId" placeholder="例如 user001">
+        </div>
+        <div class="form-group">
+          <label>姓名</label>
+          <input type="text" id="p-name" placeholder="姓名">
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="p-email" placeholder="email@example.com">
+        </div>
+        <div class="form-group">
+          <label>角色</label>
+          <input type="text" id="p-role" value="師資生" placeholder="師資生">
+        </div>
+      </div>
+      <button type="button" id="btn-save-personal">儲存</button>
+      <button type="button" id="btn-list-personal">列出全部</button>
+      <div id="personal-msg"></div>
+      <div id="personal-list" class="pre" style="margin-top:1rem;max-height:300px;overflow:auto;"></div>
+    </section>
+
+    <section id="tab-scales" class="card tab-panel" style="display:none">
+      <h2>量表問卷</h2>
+      <p class="muted" style="margin-bottom:1rem;">
+        使用 <strong>Survey.js</strong> 可視化編輯量表（拖拉題型、選項）：<a href="/setting/survey-editor">開啟 Survey.js 量表編輯器</a>
+      </p>
+      <div class="form-group">
+        <label>標題</label>
+        <input type="text" id="s-title" placeholder="量表名稱">
+      </div>
+      <div class="form-group">
+        <label>說明</label>
+        <textarea id="s-description" rows="2" placeholder="說明"></textarea>
+      </div>
+      <div class="form-group">
+        <label>題目（JSON 陣列，或使用上方 Survey.js 編輯器）</label>
+        <textarea id="s-items" rows="6" placeholder='[{"question":"題目1","type":"single","options":["A","B","C"]}]'></textarea>
+      </div>
+      <button type="button" id="btn-create-scale">新增量表</button>
+      <button type="button" id="btn-list-scales">列出全部</button>
+      <div id="scales-msg"></div>
+      <div id="scales-list" class="pre" style="margin-top:1rem;max-height:300px;overflow:auto;"></div>
+      <div id="scales-links" style="margin-top:0.5rem;"></div>
+    </section>
+
+    <section id="tab-prompts" class="card tab-panel" style="display:none">
+      <h2>Prompt 設定</h2>
+      <p class="muted">虛擬學生人格特質、互動風格、情緒回應規則等，以對應不同情境與實驗操弄條件。</p>
+      <div class="form-group">
+        <label>名稱</label>
+        <input type="text" id="pr-name" placeholder="情境名稱">
+      </div>
+      <div class="form-group">
+        <label>情境 / 說明</label>
+        <textarea id="pr-description" rows="2" placeholder="情境與實驗條件說明"></textarea>
+      </div>
+      <div class="form-group">
+        <label>角色參數（JSON）</label>
+        <textarea id="pr-roleParams" rows="8" placeholder='{"personalityTraits":["開放","友善"],"interactionStyle":"主動回應","emotionalResponseRules":{}}'></textarea>
+      </div>
+      <div class="form-group">
+        <label>Prompt 文字</label>
+        <textarea id="pr-promptText" rows="3" placeholder="系統提示詞..."></textarea>
+      </div>
+      <button type="button" id="btn-create-prompt">新增設定</button>
+      <button type="button" id="btn-list-prompts">列出全部</button>
+      <div id="prompts-msg"></div>
+      <div id="prompts-list" class="pre" style="margin-top:1rem;max-height:300px;overflow:auto;"></div>
+    </section>
+  </main>
+
+  <script>
+    const base = '';
+    function showMsg(el, text, isErr) {
+      el.innerHTML = '<span class="msg ' + (isErr ? 'error' : 'success') + '">' + text + '</span>';
+    }
+    function showJson(el, data) {
+      el.textContent = JSON.stringify(data, null, 2);
+    }
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+        btn.classList.add('active');
+        const id = 'tab-' + btn.dataset.tab;
+        document.getElementById(id).style.display = 'block';
+      });
+    });
+
+    document.getElementById('btn-save-personal').addEventListener('click', async () => {
+      const userId = document.getElementById('p-userId').value.trim();
+      if (!userId) { showMsg(document.getElementById('personal-msg'), '請填寫使用者 ID', true); return; }
+      try {
+        const r = await fetch(base + '/api/editing/personal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            name: document.getElementById('p-name').value.trim(),
+            email: document.getElementById('p-email').value.trim(),
+            role: document.getElementById('p-role').value.trim() || '師資生'
+          })
+        });
+        const d = await r.json();
+        showMsg(document.getElementById('personal-msg'), d.success ? '已儲存' : (d.message || '失敗'), !d.success);
+      } catch (e) {
+        showMsg(document.getElementById('personal-msg'), '請求失敗：' + e.message, true);
+      }
+    });
+    document.getElementById('btn-list-personal').addEventListener('click', async () => {
+      try {
+        const r = await fetch(base + '/api/editing/personal');
+        const d = await r.json();
+        showJson(document.getElementById('personal-list'), d.data || []);
+      } catch (e) {
+        document.getElementById('personal-list').textContent = '錯誤：' + e.message;
+      }
+    });
+
+    document.getElementById('btn-create-scale').addEventListener('click', async () => {
+      let items = [];
+      try { items = JSON.parse(document.getElementById('s-items').value || '[]'); } catch (e) {
+        showMsg(document.getElementById('scales-msg'), '題目請使用合法 JSON', true);
+        return;
+      }
+      try {
+        const r = await fetch(base + '/api/editing/scales', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: document.getElementById('s-title').value.trim(),
+            description: document.getElementById('s-description').value.trim(),
+            items
+          })
+        });
+        const d = await r.json();
+        showMsg(document.getElementById('scales-msg'), d.success ? '已新增量表' : (d.message || '失敗'), !d.success);
+        if (d.success) document.getElementById('scales-list').textContent = JSON.stringify(d.data, null, 2);
+      } catch (e) {
+        showMsg(document.getElementById('scales-msg'), '請求失敗：' + e.message, true);
+      }
+    });
+    document.getElementById('btn-list-scales').addEventListener('click', async () => {
+      try {
+        const r = await fetch(base + '/api/editing/scales');
+        const d = await r.json();
+        const list = d.data || [];
+        showJson(document.getElementById('scales-list'), list);
+        const linksEl = document.getElementById('scales-links');
+        if (list.length) {
+          linksEl.innerHTML = '用 Survey.js 編輯：' + list.map(s =>
+            '<a href="/setting/survey-editor?id=' + s._id + '">' + (s.title || s._id) + '</a>'
+          ).join('、');
+        } else {
+          linksEl.innerHTML = '';
+        }
+      } catch (e) {
+        document.getElementById('scales-list').textContent = '錯誤：' + e.message;
+        document.getElementById('scales-links').innerHTML = '';
+      }
+    });
+
+    document.getElementById('btn-create-prompt').addEventListener('click', async () => {
+      let roleParameters = {};
+      try { roleParameters = JSON.parse(document.getElementById('pr-roleParams').value || '{}'); } catch (e) {
+        showMsg(document.getElementById('prompts-msg'), '角色參數請使用合法 JSON', true);
+        return;
+      }
+      try {
+        const r = await fetch(base + '/api/editing/prompts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: document.getElementById('pr-name').value.trim(),
+            description: document.getElementById('pr-description').value.trim(),
+            roleParameters,
+            promptText: document.getElementById('pr-promptText').value.trim()
+          })
+        });
+        const d = await r.json();
+        showMsg(document.getElementById('prompts-msg'), d.success ? '已新增 Prompt 設定' : (d.message || '失敗'), !d.success);
+        if (d.success) document.getElementById('prompts-list').textContent = JSON.stringify(d.data, null, 2);
+      } catch (e) {
+        showMsg(document.getElementById('prompts-msg'), '請求失敗：' + e.message, true);
+      }
+    });
+    document.getElementById('btn-list-prompts').addEventListener('click', async () => {
+      try {
+        const r = await fetch(base + '/api/editing/prompts');
+        const d = await r.json();
+        showJson(document.getElementById('prompts-list'), d.data || []);
+      } catch (e) {
+        document.getElementById('prompts-list').textContent = '錯誤：' + e.message;
+      }
+    });
+  </script>
+</body>
+</html>
