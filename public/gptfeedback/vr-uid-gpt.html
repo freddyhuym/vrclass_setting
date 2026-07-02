@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VR 資料 — GPT 綜合回饋</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    .g-wrap { max-width: 880px; margin: 0 auto; padding: 1.25rem 1rem 2.5rem; }
+    .g-h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
+    .g-meta { color: var(--muted); font-size: 0.88rem; margin: 0 0 1rem; line-height: 1.5; }
+    .g-loading {
+      display: flex; align-items: center; gap: 0.6rem; padding: 1.5rem; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 10px; min-height: 4rem;
+    }
+    .g-loading[hidden] { display: none !important; }
+    .g-spinner {
+      width: 1.25rem; height: 1.25rem; border: 2px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%; animation: gspin 0.7s linear infinite;
+    }
+    @keyframes gspin { to { transform: rotate(360deg); } }
+    .g-out { white-space: pre-wrap; line-height: 1.6; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.1rem 1.25rem; }
+    .g-err { color: var(--danger, #b91c1c); }
+    .g-counts { font-size: 0.8rem; color: var(--muted); margin-top: 0.75rem; }
+    .g-btns { margin-top: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="g-wrap">
+    <h1 class="g-h1" style="font-size:1.05rem;margin:0 0 0.75rem;color:var(--muted)">綜合回饋</h1>
+    <div id="g-loading" class="g-loading" role="status" aria-live="polite">
+      <div class="g-spinner" aria-hidden="true"></div>
+      <span>載入中，正在讀取資料並請求 GPT 分析，請稍候…</span>
+    </div>
+    <div id="g-err" class="g-err" hidden></div>
+    <div id="g-out" class="g-out" hidden style="min-height:6rem;"></div>
+    <div id="g-counts" class="g-counts" hidden></div>
+    <div class="g-btns">
+      <button type="button" id="g-retry" hidden>重試</button>
+    </div>
+  </div>
+  <script src="../js/vrSessionUid.js"></script>
+  <script>
+    (function () {
+      var elLoad = document.getElementById('g-loading');
+      var elErr = document.getElementById('g-err');
+      var elOut = document.getElementById('g-out');
+      var elCounts = document.getElementById('g-counts');
+      var btn = document.getElementById('g-retry');
+
+      function stepPrompt() {
+        var sk = new URLSearchParams(window.location.search).get('gptStep');
+        if (sk) {
+          var t = sessionStorage.getItem('vrGptPrompt:' + sk);
+          if (t != null && t !== '') return t;
+        }
+        return '';
+      }
+
+      /** 與 set-uid／實驗主流程一致：優先 VrSessionUid，否則用受試者編號 */
+      function getUid() {
+        var a = (window.VrSessionUid && VrSessionUid.get() || '').trim();
+        if (a) return a;
+        try {
+          a = (sessionStorage.getItem('experimentSubjectId') || '').trim();
+        } catch (e) {
+          a = '';
+        }
+        if (a && window.VrSessionUid) {
+          VrSessionUid.set(a, { persistDevice: false });
+        }
+        return a;
+      }
+
+      function run() {
+        elLoad.hidden = false;
+        elErr.hidden = true;
+        elErr.textContent = '';
+        elOut.hidden = true;
+        elOut.textContent = '';
+        elCounts.hidden = true;
+        elCounts.textContent = '';
+        btn.hidden = true;
+
+        var uid = getUid();
+        if (!uid) {
+          elLoad.hidden = true;
+          elErr.hidden = false;
+          elErr.textContent = '未偵測到受試者編號（uid）。請先完成前面「請輸入受試者編號」步驟並按「下一步」。';
+          btn.hidden = false;
+          return;
+        }
+        if (!('fetch' in window)) {
+          elLoad.hidden = true;
+          elErr.hidden = false;
+          elErr.textContent = '瀏覽器不支援 fetch。';
+          btn.hidden = false;
+          return;
+        }
+        var prompt = stepPrompt();
+        fetch('/api/gpt-vr/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: uid, prompt: prompt })
+        })
+          .then(function (r) {
+            return r
+              .json()
+              .then(function (d) { return { ok: r.ok, d: d, status: r.status }; })
+              .catch(function () {
+                return { ok: r.ok, d: { success: false, message: '回應不是有效 JSON' }, status: r.status };
+              });
+          })
+          .then(function (o) {
+            elLoad.hidden = true;
+            if (o.d && o.d.success) {
+              elOut.hidden = false;
+              elOut.textContent = o.d.reply;
+              if (o.d.counts) {
+                var total = 0; var k; for (k in o.d.counts) { if (Object.prototype.hasOwnProperty.call(o.d.counts, k)) total += o.d.counts[k] | 0; }
+                elCounts.hidden = false;
+                elCounts.textContent = '資料筆數合計 ' + total + (o.d.usage && o.d.usage.total_tokens ? ' · tokens 約 ' + o.d.usage.total_tokens : '') + (o.d.truncated ? '（內文已截斷）' : '');
+              }
+              return;
+            }
+            elErr.hidden = false;
+            elErr.textContent = (o.d && o.d.message) || ('請求失敗' + (o.status ? ' (' + o.status + ')' : '。'));
+            btn.hidden = false;
+          })
+          .catch(function (e) {
+            elLoad.hidden = true;
+            elErr.hidden = false;
+            elErr.textContent = '網路或伺服器錯誤：' + (e && e.message);
+            btn.hidden = false;
+          });
+      }
+      run();
+      btn.addEventListener('click', function () { run(); });
+    })();
+  </script>
+</body>
+</html>

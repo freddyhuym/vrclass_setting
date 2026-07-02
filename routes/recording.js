@@ -6,7 +6,9 @@ const {
   ScaleResponse,
   DecisionRecord,
   Physiological,
-  ProcessLog
+  ProcessLog,
+  WebEventLog,
+  SurveyFinalAnswer
 } = require('../models/Record');
 
 function ensureTimestamp(body) {
@@ -120,6 +122,69 @@ router.post('/process', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ========== 網頁互動歷程（每次行為一筆）==========
+router.post('/web-event', async (req, res, next) => {
+  try {
+    const body = ensureTimestamp(req.body);
+    if (!body.userId || !body.eventName) {
+      return res.status(400).json({ success: false, message: '需要 userId, eventName' });
+    }
+    const doc = await WebEventLog.create({
+      ...body,
+      source: body.source || 'web',
+      metadata: {
+        userAgent: req.headers['user-agent'],
+        referer: req.headers.referer || null,
+        ip: req.ip,
+        ...(body.metadata || {})
+      }
+    });
+    res.status(201).json({ success: true, data: doc });
+  } catch (e) { next(e); }
+});
+
+// ========== 問卷最終送出答案（僅最終，不含歷程）==========
+router.post('/survey-final', async (req, res, next) => {
+  try {
+    const body = ensureTimestamp(req.body);
+    if (!body.userId || !body.surveyId || !Array.isArray(body.answers)) {
+      return res.status(400).json({ success: false, message: '需要 userId, surveyId, answers[]' });
+    }
+    const payload = {
+      ...body,
+      source: body.source || 'web',
+      metadata: {
+        userAgent: req.headers['user-agent'],
+        referer: req.headers.referer || null,
+        ip: req.ip,
+        ...(body.metadata || {})
+      },
+      submittedAt: body.submittedAt ? new Date(body.submittedAt) : new Date(),
+      answerCount: body.answers.length
+    };
+    const doc = await SurveyFinalAnswer.create(payload);
+    res.status(201).json({ success: true, data: doc });
+  } catch (e) { next(e); }
+});
+
+// ========== 各表筆數（供資料瀏覽頁顯示）==========
+router.get('/stats', async (req, res, next) => {
+  try {
+    const counts = {
+      web_event: await WebEventLog.countDocuments(),
+      survey_final_answer: await SurveyFinalAnswer.countDocuments(),
+      process: await ProcessLog.countDocuments(),
+      scale_response: await ScaleResponse.countDocuments(),
+      emotion_feedback: await EmotionFeedback.countDocuments(),
+      decision: await DecisionRecord.countDocuments(),
+      physiological: await Physiological.countDocuments()
+    };
+    res.json({ success: true, counts });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ========== 查詢紀錄（依 userId / sessionId / 時間範圍）==========
 router.get('/records', async (req, res, next) => {
   try {
@@ -137,7 +202,9 @@ router.get('/records', async (req, res, next) => {
       scale_response: ScaleResponse,
       decision: DecisionRecord,
       physiological: Physiological,
-      process: ProcessLog
+      process: ProcessLog,
+      web_event: WebEventLog,
+      survey_final_answer: SurveyFinalAnswer
     };
     const Model = type ? models[type] : null;
     if (Model) {

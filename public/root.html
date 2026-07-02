@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AI × IVR 師資生情緒管理訓練系統 - 入口</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="/setting/styles.css">
   <style>
     .root-container {
       max-width: 640px;
       margin: 0 auto;
-      padding: 3rem 1.5rem;
+      padding: 3rem 1.5rem 1.5rem;
       text-align: center;
     }
     .root-buttons {
@@ -21,6 +21,191 @@
     }
     .root-buttons a button {
       min-width: 200px;
+    }
+    .api-section {
+      max-width: 960px;
+      margin: 0 auto 2rem;
+      padding: 0 1.25rem;
+    }
+    .api-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+      border: 1px solid #e2e8f0;
+      padding: 1.75rem 1.5rem 1.5rem;
+      text-align: left;
+    }
+    .api-card h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .api-card .api-sub {
+      margin: 0 0 1.25rem;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: #64748b;
+    }
+    .api-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .api-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    .api-table th {
+      text-align: left;
+      padding: 0.65rem 0.85rem;
+      background: #f1f5f9;
+      color: #475569;
+      font-weight: 600;
+      font-size: 0.78rem;
+      letter-spacing: 0.02em;
+      border-bottom: 1px solid #e2e8f0;
+      white-space: nowrap;
+    }
+    .api-table td {
+      padding: 0.72rem 0.85rem;
+      border-bottom: 1px solid #e2e8f0;
+      color: #334155;
+      vertical-align: top;
+    }
+    .api-table td.module {
+      font-weight: 600;
+      color: #475569;
+      white-space: nowrap;
+      width: 4.5rem;
+    }
+    .api-table td.method {
+      font-family: ui-monospace, monospace;
+      font-size: 0.8rem;
+      color: #0f172a;
+      white-space: nowrap;
+    }
+    .api-table td.path code {
+      font-size: 0.78rem;
+      word-break: break-all;
+      color: #1d4ed8;
+    }
+    tr.api-row {
+      cursor: pointer;
+      transition: background 0.12s ease;
+    }
+    tr.api-row:hover {
+      background: #f8fafc;
+    }
+    tr.api-row:focus-visible {
+      outline: 2px solid #3b82f6;
+      outline-offset: -2px;
+    }
+    tr.api-detail td {
+      padding: 0 0.85rem 0.85rem;
+      border-bottom: 1px solid #e2e8f0;
+      background: #fafbfc;
+      font-size: 0.8rem;
+      color: #475569;
+    }
+    tr.api-detail pre {
+      margin: 0.5rem 0 0;
+      padding: 0.65rem 0.75rem;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.72rem;
+      line-height: 1.45;
+    }
+    tr.api-detail[hidden] {
+      display: none;
+    }
+    .footer-note {
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--muted, #64748b);
+      padding: 0 1rem 2rem;
+    }
+    .vr-test-section {
+      max-width: 960px;
+      margin: 0 auto 1.5rem;
+      padding: 0 1.25rem;
+    }
+    .vr-test-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+      border: 1px solid #e2e8f0;
+      padding: 1.5rem 1.35rem;
+      text-align: left;
+    }
+    .vr-test-card h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .vr-test-card .hint {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin: 0 0 1rem;
+      line-height: 1.5;
+    }
+    .vr-test-fields {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .vr-test-fields label {
+      font-size: 0.85rem;
+      color: #475569;
+    }
+    .vr-test-fields input[type="text"] {
+      min-width: 12rem;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    .vr-test-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .vr-test-actions button {
+      font-size: 0.85rem;
+      padding: 0.5rem 0.85rem;
+    }
+    .vr-test-actions button.secondary {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+    .vr-test-log {
+      font-family: ui-monospace, monospace;
+      font-size: 0.72rem;
+      line-height: 1.45;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.75rem;
+      max-height: 14rem;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: 0 0 0.75rem;
+    }
+    .vr-test-log:last-child {
+      margin-bottom: 0;
+    }
+    .vr-test-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #475569;
+      margin: 0 0 0.35rem;
     }
   </style>
 </head>
@@ -39,12 +224,339 @@
       <a href="/setting" target="_blank">
         <button type="button">進入設定介面（/setting）</button>
       </a>
+      <a href="/data" target="_blank">
+        <button type="button">查看收集資料（Data Browser）</button>
+      </a>
     </div>
   </main>
 
-  <footer class="footer">
-    <p>MongoDB 3.4 · Node.js 後端 · 預設埠 3000</p>
-  </footer>
+  <section class="vr-test-section" aria-label="VR 上傳測試">
+    <div class="vr-test-card">
+      <h2>VR 教室 · 測試 POST</h2>
+      <p class="hint">在瀏覽器內對五個上傳端點各送一筆 <code>application/x-www-form-urlencoded</code> 測試資料（與 Unity 相同路徑）。若 <code>.env</code> 設了 <code>VR_API_KEY</code>，請在下方填寫相同的 <code>apikey</code>。</p>
+      <div class="vr-test-fields">
+        <label for="vr-apikey">apikey（選填）</label>
+        <input type="text" id="vr-apikey" name="vr-apikey" placeholder="未設定 VR_API_KEY 可留空" autocomplete="off">
+      </div>
+      <div class="vr-test-actions">
+        <button type="button" id="vr-send-all">五類各送一筆（Event_Looking、Looking、Event、Anime、LookingRange）</button>
+        <button type="button" class="secondary" id="vr-refresh-summary">重新整理資料庫統計</button>
+      </div>
+      <p class="vr-test-label">POST 結果</p>
+      <pre class="vr-test-log" id="vr-post-log">（尚無操作）</pre>
+      <p class="vr-test-label">各 collection 筆數（與舊版同名：<code>event_lookingdatas</code>、<code>lookingdatas</code>、<code>eventdatas</code>、<code>animedatas</code>、<code>lookingrangedatas</code>）</p>
+      <pre class="vr-test-log" id="vr-db-summary">點「重新整理資料庫統計」載入。</pre>
+    </div>
+  </section>
+
+  <section class="api-section" aria-label="API 端點總覽">
+    <div class="api-card">
+      <h2>API 端點總覽</h2>
+      <p class="api-sub">點任一列可查看用途、請求／回應範例，方便 Unity／外部程式直接串接。基底網址請替換為目前服務位址（例如 <code>http://localhost:4000</code>）。</p>
+      <div class="api-table-wrap">
+        <table class="api-table">
+          <thead>
+            <tr>
+              <th>模組</th>
+              <th>方法</th>
+              <th>路徑</th>
+              <th>說明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="api-row" tabindex="0" data-title="個人資料 CRUD"
+                data-purpose="依 userId 讀寫刪個人資料；列表用 GET 無參數或帶查詢。"
+                data-req="GET /api/editing/personal\nGET /api/editing/personal/:userId\nPOST /api/editing/personal  body: JSON\nPUT /api/editing/personal/:userId\nDELETE /api/editing/personal/:userId"
+                data-res="JSON 物件或陣列；錯誤時 success: false 與 message。">
+              <td class="module">編輯</td>
+              <td class="method">GET/POST/PUT/DELETE</td>
+              <td class="path"><code>/api/editing/personal</code></td>
+              <td>個人資料 CRUD</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="量表問卷 CRUD"
+                data-purpose="量表定義的列表、單筆與新增／更新／刪除。"
+                data-req="GET/POST /api/editing/scales\nGET/PUT/DELETE /api/editing/scales/:id  Content-Type: application/json"
+                data-res="量表文件 JSON；列表為陣列。">
+              <td class="module">編輯</td>
+              <td class="method">GET/POST/PUT/DELETE</td>
+              <td class="path"><code>/api/editing/scales</code></td>
+              <td>量表問卷 CRUD</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="Prompt 設定 CRUD"
+                data-purpose="Prompt 模板列表與單筆維護。"
+                data-req="GET/POST /api/editing/prompts\nGET/PUT/DELETE /api/editing/prompts/:id"
+                data-res="Prompt 文件 JSON。">
+              <td class="module">編輯</td>
+              <td class="method">GET/POST/PUT/DELETE</td>
+              <td class="path"><code>/api/editing/prompts</code></td>
+              <td>Prompt 設定 CRUD</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="統一寫入紀錄"
+                data-purpose="以 type + payload 寫入一筆紀錄，供實驗流程多來源統一落地。"
+                data-req="POST /api/recording/write\nContent-Type: application/json\nbody: { type, payload, userId?, ... }"
+                data-res="{ success: true } 或錯誤訊息。">
+              <td class="module">紀錄</td>
+              <td class="method">POST</td>
+              <td class="path"><code>/api/recording/write</code></td>
+              <td>統一寫入（type + payload）</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="生理指標"
+                data-purpose="瞳孔、GSR、心率等生理資料上傳。"
+                data-req="POST /api/recording/physiological\nContent-Type: application/json"
+                data-res="{ success: true }。">
+              <td class="module">紀錄</td>
+              <td class="method">POST</td>
+              <td class="path"><code>/api/recording/physiological</code></td>
+              <td>生理指標（瞳孔、GSR、心率）</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="查詢紀錄"
+                data-purpose="依 userId、type、時間區間等查詢已存紀錄。"
+                data-req="GET /api/recording/records?userId=&amp;type=&amp;from=&amp;to="
+                data-res="JSON 陣列或包在物件內之列表。">
+              <td class="module">紀錄</td>
+              <td class="method">GET</td>
+              <td class="path"><code>/api/recording/records</code></td>
+              <td>查詢紀錄（userId, type, from, to）</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="其他紀錄端點"
+                data-purpose="實驗各階段專用上傳：個人、量表作答、情緒回饋、決策、歷程、網頁事件、問卷結束等。"
+                data-req="皆為 POST，路徑：/personal, /scale-response, /emotion-feedback, /decision, /process, /web-event, /survey-final"
+                data-res="各端點回傳 success 或資料 JSON，請以實際路由實作為準。">
+              <td class="module">紀錄</td>
+              <td class="method">POST</td>
+              <td class="path"><code>/api/recording/…</code></td>
+              <td>階段寫入（personal、scale-response、emotion-feedback 等）</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="情緒標註"
+                data-purpose="寫入或讀取情緒標註資料。"
+                data-req="POST /api/feedback/emotion-annotation\nGET /api/feedback/emotion-annotations?..."
+                data-res="標註文件或列表。">
+              <td class="module">反饋</td>
+              <td class="method">POST/GET</td>
+              <td class="path"><code>/api/feedback/emotion-annotation</code></td>
+              <td>情緒標註</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="多模態指標反饋"
+                data-purpose="彙整多模態指標供儀表或分析使用。"
+                data-req="GET /api/feedback/multimodal-summary?..."
+                data-res="摘要 JSON。">
+              <td class="module">反饋</td>
+              <td class="method">GET</td>
+              <td class="path"><code>/api/feedback/multimodal-summary</code></td>
+              <td>多模態指標反饋</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="情緒察覺反思"
+                data-purpose="提交或查詢反思內容。"
+                data-req="POST /api/feedback/reflection\nGET /api/feedback/reflections?..."
+                data-res="反思文件或列表。">
+              <td class="module">反饋</td>
+              <td class="method">POST/GET</td>
+              <td class="path"><code>/api/feedback/reflection</code></td>
+              <td>情緒察覺反思</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="供分析匯出"
+                data-purpose="整理後資料供 ChatGPT／外部分析。"
+                data-req="GET /api/feedback/for-analysis?..."
+                data-res="分析用 JSON。">
+              <td class="module">反饋</td>
+              <td class="method">GET</td>
+              <td class="path"><code>/api/feedback/for-analysis</code></td>
+              <td>供 ChatGPT 分析之資料</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="實驗流程與步驟"
+                data-purpose="讀寫流程設定、步驟內容與實驗編號等設定。"
+                data-req="GET/POST /api/experiments/flow\nPOST /api/experiments/steps\nGET/PUT/DELETE /api/experiments/steps/:key\nGET/PUT /api/experiments/config"
+                data-res="流程與設定 JSON。">
+              <td class="module">實驗</td>
+              <td class="method">GET/POST/PUT/DELETE</td>
+              <td class="path"><code>/api/experiments/…</code></td>
+              <td>實驗流程、步驟與 config</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="指導語"
+                data-purpose="指導語列表、依 id／key 讀取與維護。"
+                data-req="GET/POST /api/instructions\nGET/PUT/DELETE /api/instructions/:id\nGET /api/instructions/by-key/:key"
+                data-res="指導語文件 JSON。">
+              <td class="module">指導語</td>
+              <td class="method">GET/POST/PUT/DELETE</td>
+              <td class="path"><code>/api/instructions</code></td>
+              <td>指導語 CRUD</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="VR 教室—視線／事件上傳"
+                data-purpose="與 Unity 相同路徑；application/x-www-form-urlencoded；表單欄位 apikey（若設 VR_API_KEY 須相符）。"
+                data-req="POST /auth/api/vr_classsroom/Updatas_Event_Looking\nPOST …/Updatas_Looking\nPOST …/Updatas_Event\nPOST …/Updatas_Anime\nPOST …/Updatas_LookingRange"
+                data-res="{ success: true }。">
+              <td class="module">VR 教室</td>
+              <td class="method">POST</td>
+              <td class="path"><code>/auth/api/vr_classsroom/Updatas_*</code></td>
+              <td>歷程上傳（Event_Looking、Looking、Event、Anime、LookingRange）</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+
+            <tr class="api-row" tabindex="0" data-title="VR 教室—查詢下載"
+                data-purpose="Unity PointDownload_Web；POST 回傳 { message: [...] }。"
+                data-req="POST body 常含 uid, mission_id, event_id（依端點）"
+                data-res="POST /auth/api/vr_classsroom/Get_LookingRangeData\nPOST …/Get_EventLookingData_partial\nPOST …/Get_AnimeData\n皆回傳 JSON，內含 message 陣列。">
+              <td class="module">VR 教室</td>
+              <td class="method">POST</td>
+              <td class="path"><code>/auth/api/vr_classsroom/Get_*</code></td>
+              <td>查詢下載（LookingRange、EventLooking、Anime）</td>
+            </tr>
+            <tr class="api-detail" hidden><td colspan="4"></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <p class="footer-note">MongoDB 3.4 · Node.js 後端 · 預設埠 4000</p>
+
+  <script>
+    (function () {
+      function nl(s) {
+        return (s || '').replace(/\\n/g, '\n');
+      }
+      function fillDetail(row, detailRow) {
+        var cell = detailRow.querySelector('td');
+        var title = row.getAttribute('data-title') || '';
+        var purpose = nl(row.getAttribute('data-purpose'));
+        var req = nl(row.getAttribute('data-req'));
+        var res = nl(row.getAttribute('data-res'));
+        cell.innerHTML =
+          '<strong>' + escapeHtml(title) + '</strong><p style="margin:0.35rem 0 0.5rem">' + escapeHtml(purpose) + '</p>' +
+          '<div><strong>請求</strong><pre>' + escapeHtml(req) + '</pre></div>' +
+          '<div><strong>回應</strong><pre>' + escapeHtml(res) + '</pre></div>';
+      }
+      function escapeHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+      }
+      function toggle(row, detailRow) {
+        var open = detailRow.hidden;
+        document.querySelectorAll('tr.api-detail').forEach(function (r) {
+          r.hidden = true;
+        });
+        document.querySelectorAll('tr.api-row').forEach(function (r) {
+          r.setAttribute('aria-expanded', 'false');
+        });
+        if (open) {
+          fillDetail(row, detailRow);
+          detailRow.hidden = false;
+          row.setAttribute('aria-expanded', 'true');
+        }
+      }
+      document.querySelectorAll('tr.api-row').forEach(function (row) {
+        var detailRow = row.nextElementSibling;
+        if (!detailRow || !detailRow.classList.contains('api-detail')) return;
+        row.setAttribute('role', 'button');
+        row.setAttribute('aria-expanded', 'false');
+        row.addEventListener('click', function () {
+          toggle(row, detailRow);
+        });
+        row.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggle(row, detailRow);
+          }
+        });
+      });
+    })();
+  </script>
+  <script>
+    (function () {
+      var base = '/auth/api/vr_classsroom';
+      var logEl = document.getElementById('vr-post-log');
+      var sumEl = document.getElementById('vr-db-summary');
+      var keyInput = document.getElementById('vr-apikey');
+
+      function appendLog(line) {
+        var t = logEl.textContent;
+        if (t === '（尚無操作）') t = '';
+        logEl.textContent = t + line + '\n';
+      }
+
+      function buildPosts(ts) {
+        var k = (keyInput && keyInput.value) ? String(keyInput.value).trim() : '';
+        function B(extra) {
+          var o = { uid: 'u-demo', mission_id: 'm1', test_marker: 'browser_' + ts + '_' + extra };
+          if (k) o.apikey = k;
+          return o;
+        }
+        return [
+          { label: 'Event_Looking', path: '/Updatas_Event_Looking', body: Object.assign(B('event_looking'), { event_id: 'e1', find_time: '100', point_x: '0.1', point_y: '0.2', point_z: '0.3' }) },
+          { label: 'Looking', path: '/Updatas_Looking', body: Object.assign(B('looking'), { looking_x: '10', looking_y: '20', looking_z: '30' }) },
+          { label: 'Event', path: '/Updatas_Event', body: Object.assign(B('event'), { event_id: 'e2', trigger: 'click' }) },
+          { label: 'Anime', path: '/Updatas_Anime', body: Object.assign(B('anime'), { event_id: 'e1', anime_tag: 'demo', time_scale: '1', seat_number: '3' }) },
+          { label: 'LookingRange', path: '/Updatas_LookingRange', body: Object.assign(B('looking_range'), { event_id: 'e1', x: '1', y: '2', z: '3', point: 'A1' }) }
+        ];
+      }
+
+      function toFormBody(obj) {
+        return Object.keys(obj).map(function (key) {
+          return encodeURIComponent(key) + '=' + encodeURIComponent(obj[key] == null ? '' : String(obj[key]));
+        }).join('&');
+      }
+
+      document.getElementById('vr-send-all').addEventListener('click', async function () {
+        logEl.textContent = '';
+        var ts = Date.now();
+        var posts = buildPosts(ts);
+        for (var i = 0; i < posts.length; i++) {
+          var p = posts[i];
+          try {
+            var res = await fetch(base + p.path, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: toFormBody(p.body)
+            });
+            var text = await res.text();
+            appendLog(p.label + ' → HTTP ' + res.status + ' ' + text);
+          } catch (e) {
+            appendLog(p.label + ' → 錯誤 ' + (e && e.message));
+          }
+        }
+        await refreshSummary();
+      });
+
+      async function refreshSummary() {
+        try {
+          var res = await fetch('/api/vr-classroom/summary');
+          var data = await res.json();
+          sumEl.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+          sumEl.textContent = '載入失敗：' + (e && e.message);
+        }
+      }
+
+      document.getElementById('vr-refresh-summary').addEventListener('click', refreshSummary);
+      refreshSummary();
+    })();
+  </script>
 </body>
 </html>
-

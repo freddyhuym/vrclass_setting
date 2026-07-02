@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>實驗入口 - 受試者編號</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .exp-container {
+      width: 1110px;
+      max-width: 100%;
+      margin: 0 auto;
+      padding: 2.25rem 1.25rem 3rem;
+    }
+    .exp-card {
+      background: #ffffff;
+      border-radius: 3px;
+      border: 1px solid #d7dfdc;
+      padding: 1.75rem;
+      min-height: 200px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+      text-align: center;
+    }
+    .entry-title {
+      margin: 0 0 1.25rem;
+      font-size: 1.8rem;
+      color: #1f2937;
+    }
+    .entry-field {
+      margin-top: 0.5rem;
+    }
+    .entry-label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      color: #1f2937;
+    }
+    .entry-input {
+      width: 100%;
+      max-width: 520px;
+      height: 40px;
+      border: 1px solid #cfd4da;
+      border-radius: 4px;
+      padding: 8px 10px;
+      font-size: 1rem;
+    }
+    .exp-nav-main {
+      margin-top: 1rem;
+      text-align: center;
+    }
+    .primary-next-btn {
+      border-radius: 4px;
+      min-width: 120px;
+      border: 1px solid #7fbf9b;
+      background: #bfead0;
+      color: #13452b;
+      padding: 0.55rem 1.1rem;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .primary-next-btn[disabled] {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="exp-container">
+    <div class="exp-card">
+      <h1 class="entry-title">請輸入受試者編號</h1>
+      <div class="entry-field">
+        <input id="subject-id" class="entry-input" type="text" placeholder="例如：A001">
+      </div>
+    </div>
+
+    <div class="exp-nav-main">
+      <button type="button" id="btn-next" class="primary-next-btn" disabled>下一步</button>
+    </div>
+  </div>
+
+  <script src="/setting/js/vrSessionUid.js"></script>
+  <script src="/setting/js/flowStepSort.js"></script>
+  <script>
+    let experimentCode = '';
+
+    function createSessionId() {
+      return 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+    }
+
+    async function ensureExperimentCode() {
+      const cached = sessionStorage.getItem('experimentCode') || '';
+      if (cached) {
+        experimentCode = cached;
+        return;
+      }
+      try {
+        const r = await fetch('/api/experiments/config');
+        const d = await r.json();
+        const code = d?.success ? String(d.data?.experimentCode || '').trim() : '';
+        experimentCode = code || 'study-001';
+      } catch (e) {
+        experimentCode = 'study-001';
+      }
+      sessionStorage.setItem('experimentCode', experimentCode);
+    }
+
+    async function postWebEvent(payload) {
+      try {
+        await fetch('/api/recording/web-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {
+        console.warn('寫入 web-event 失敗:', e.message);
+      }
+    }
+
+    async function getFirstStepKey() {
+      const r = await fetch('/api/experiments/flow?flowKey=default');
+      const d = await r.json();
+      if (!d.success || !Array.isArray(d.data) || !d.data.length) return null;
+      const list = d.data.slice().sort(compareFlowSteps);
+      return list[0]?.key || null;
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await ensureExperimentCode();
+      const input = document.getElementById('subject-id');
+      const btn = document.getElementById('btn-next');
+      const titleEl = document.querySelector('.entry-title');
+      const params = new URLSearchParams(window.location.search);
+      const askEntry = params.get('ask') === '1' || params.get('entry') === '1';
+
+      let sessionId = sessionStorage.getItem('experimentSessionId') || '';
+      if (!sessionId) {
+        sessionId = createSessionId();
+        sessionStorage.setItem('experimentSessionId', sessionId);
+      }
+
+      const fromExp = (sessionStorage.getItem('experimentSubjectId') || '').trim();
+      const fromVr = (window.VrSessionUid && VrSessionUid.get()) ? VrSessionUid.get().trim() : '';
+
+      let useId = (fromExp || fromVr || '').trim();
+      if (!fromExp && fromVr) {
+        sessionStorage.setItem('experimentSubjectId', fromVr);
+        useId = fromVr;
+      }
+
+      async function goToFirstStepWithKey(subjectId, firstKey) {
+        await postWebEvent({
+          userId: subjectId,
+          sessionId,
+          experimentCode: experimentCode || undefined,
+          pageName: 'experiment_entry',
+          pagePath: '/experiment',
+          eventName: 'click',
+          targetType: 'button',
+          targetText: '下一步',
+          afterValue: subjectId,
+          clientTs: new Date().toISOString()
+        });
+        window.location.replace('/experiment/' + encodeURIComponent(firstKey));
+      }
+
+      async function goToFirstStep(subjectId) {
+        const firstKey = await getFirstStepKey();
+        if (!firstKey) {
+          alert('尚未設定實驗流程。');
+          return;
+        }
+        await goToFirstStepWithKey(subjectId, firstKey);
+      }
+
+      if (!askEntry) {
+        if (useId) {
+          if (!sessionStorage.getItem('experimentSubjectId') || sessionStorage.getItem('experimentSubjectId') !== useId) {
+            sessionStorage.setItem('experimentSubjectId', useId);
+          }
+          if (window.VrSessionUid && !String(VrSessionUid.get() || '').trim()) {
+            VrSessionUid.set(useId, { persistDevice: false });
+          }
+        }
+        if (titleEl) {
+          titleEl.textContent = '進入實驗…';
+        }
+        const firstKey = await getFirstStepKey();
+        if (!firstKey) {
+          alert('尚未設定實驗流程。');
+          return;
+        }
+        const subjectForEvent = useId || 'anonymous';
+        await goToFirstStepWithKey(subjectForEvent, firstKey);
+        return;
+      }
+
+      input.value = useId;
+      btn.disabled = !useId;
+
+      input.addEventListener('input', function () {
+        btn.disabled = !input.value.trim();
+      });
+
+      btn.addEventListener('click', async () => {
+        const subjectId = input.value.trim();
+        if (!subjectId) return;
+        sessionStorage.setItem('experimentSubjectId', subjectId);
+        if (window.VrSessionUid) {
+          VrSessionUid.set(subjectId, { persistDevice: false });
+        }
+        await goToFirstStep(subjectId);
+      });
+    });
+  </script>
+</body>
+</html>

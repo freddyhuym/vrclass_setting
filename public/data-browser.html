@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>資料瀏覽 - 收集資料</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .db-topbar {
+      height: 52px;
+      background: #1e88e5;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1rem;
+      font-weight: 600;
+    }
+    .db-container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem 2rem;
+    }
+    .db-title {
+      margin: 0 0 1rem;
+      font-size: 2rem;
+      font-weight: 700;
+      color: #334155;
+    }
+    .db-subtitle {
+      margin: 0 0 1.2rem;
+      color: #64748b;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 0.8rem;
+    }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 0.8rem;
+      margin-bottom: 1.25rem;
+    }
+    .collection-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      background: #fff;
+      padding: 0.75rem;
+      cursor: pointer;
+      text-align: left;
+    }
+    .collection-card:hover { border-color: #90caf9; box-shadow: 0 2px 8px rgba(30,136,229,.12); }
+    .collection-card.active { border-color: #42a5f5; background: #f5fafe; }
+    .c-name {
+      color: #1e88e5;
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 0.2rem;
+      word-break: break-all;
+    }
+    .c-count {
+      color: #64748b;
+      font-size: 0.85rem;
+    }
+    .toolbar {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    .toolbar input, .toolbar select {
+      background: #fff;
+      border: 1px solid #dbe3ee;
+      border-radius: 4px;
+      padding: 0.45rem 0.6rem;
+    }
+    .toolbar button {
+      background: #f8fafc;
+      border: 1px solid #dbe3ee;
+      color: #334155;
+      border-radius: 4px;
+      padding: 0.45rem 0.7rem;
+    }
+    .list-head {
+      color: #475569;
+      font-size: 0.95rem;
+      margin-bottom: 0.5rem;
+    }
+    table.db-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+      font-size: 0.9rem;
+      table-layout: fixed;
+    }
+    .db-table th, .db-table td {
+      padding: 0.55rem 0.6rem;
+      border-bottom: 1px solid #eef2f7;
+      text-align: left;
+      vertical-align: top;
+      word-break: break-word;
+    }
+    .db-table th { color: #64748b; font-weight: 600; background: #f8fafc; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 0.8rem; }
+    .eye-cell {
+      max-height: 5.5rem;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+    .row-details summary {
+      cursor: pointer;
+      color: #1e88e5;
+      font-weight: 600;
+    }
+    .row-details pre {
+      margin: 0.5rem 0 0;
+      max-height: 18rem;
+      overflow: auto;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      padding: 0.65rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .pager {
+      margin-top: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #64748b;
+      font-size: 0.9rem;
+    }
+    .pager button {
+      background: #fff;
+      border: 1px solid #dbe3ee;
+      color: #334155;
+      border-radius: 4px;
+      padding: 0.35rem 0.6rem;
+    }
+    .col-change { min-width: 200px; }
+  </style>
+</head>
+<body>
+  <div class="db-topbar">
+    <div>資料總覽</div>
+    <div>Data Browser · /data</div>
+  </div>
+
+  <main class="db-container">
+    <h1 class="db-title">AI × IVR Data API</h1>
+    <p class="db-hint" style="color:#64748b;font-size:0.95rem;margin:0 0 1rem;line-height:1.5;">
+      下方卡片名稱與 MongoDB <strong>collection 名稱</strong>一致（與 Compass／舊站相同）。讀取仍分兩路：第一區經 <code>/api/recording</code>；第二區為 VR 舊版 API 寫入之表。
+    </p>
+
+    <p class="db-subtitle">實驗室／網頁多模態</p>
+    <section id="cards-lab" class="cards-grid"></section>
+
+    <p class="db-subtitle" style="margin-top:1.25rem">VR 教室舊版（Unity REST）</p>
+    <section id="cards-vr" class="cards-grid"></section>
+
+    <section class="toolbar">
+      <input id="search" type="text" placeholder="Search keyword...">
+      <input id="userId" type="text" placeholder="userId；VR 區可填 uid">
+      <input id="sessionId" type="text" placeholder="sessionId（僅多模態）" title="僅實驗室多模態篩選使用">
+      <select id="sortField">
+        <option value="timestamp">timestamp</option>
+        <option value="createdAt">createdAt</option>
+        <option value="eventName">eventName</option>
+      </select>
+      <select id="sortDir">
+        <option value="desc">descending</option>
+        <option value="asc">ascending</option>
+      </select>
+      <select id="pageSize">
+        <option value="50">50</option>
+        <option value="100" selected>100</option>
+        <option value="200">200</option>
+      </select>
+      <button id="btnLoad" type="button">Reload</button>
+      <button id="btnCsv" type="button">下載 CSV</button>
+    </section>
+
+    <div id="summary" class="list-head">Loading...</div>
+    <div style="overflow-x:auto;">
+    <table class="db-table">
+      <thead id="thead"></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    </div>
+    <div class="pager">
+      <div id="pagerText">Showing 0</div>
+      <div>
+        <button id="btnPrev" type="button">Prev</button>
+        <button id="btnNext" type="button">Next</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    /** API type（查詢用）↔ Mongo collection 名稱（顯示用，與舊版/Compass 一致） */
+    const LAB_MAPPINGS = [
+      { type: 'web_event', collection: 'webeventlogs' },
+      { type: 'survey_final_answer', collection: 'surveyfinalanswers' },
+      { type: 'process', collection: 'processlogs' },
+      { type: 'scale_response', collection: 'scaleresponses' },
+      { type: 'emotion_feedback', collection: 'emotionfeedbacks' },
+      { type: 'decision', collection: 'decisionrecords' },
+      { type: 'physiological', collection: 'physiologicals' }
+    ];
+    const VR_COLLECTIONS = [
+      'event_lookingdatas',
+      'lookingdatas',
+      'eventdatas',
+      'animedatas',
+      'lookingrangedatas'
+    ];
+    function labCollectionNameByType(t) {
+      const m = LAB_MAPPINGS.find((x) => x.type === t);
+      return m ? m.collection : t;
+    }
+    let dataMode = 'lab';
+    let selectedType = 'web_event';
+    let selectedVr = 'event_lookingdatas';
+    let labCountMap = {};
+    let vrCountMap = {};
+    let rawRows = [];
+    let page = 1;
+
+    const THEAD_LAB = `
+        <tr>
+          <th style="width: 8%;">受試者編號(UID)</th>
+          <th style="width: 8%;">實驗編號</th>
+          <th style="width: 9%;">步驟名稱</th>
+          <th style="width: 11%;">量表/指導語名稱</th>
+          <th style="width: 7%;">Event</th>
+          <th style="width: 8%;">Event 中文</th>
+          <th style="width: 14%;">Main Content</th>
+          <th class="col-change" style="width: 22%;">變更內容</th>
+          <th style="width: 12%;">Created At</th>
+        </tr>`;
+    const THEAD_VR = `
+        <tr>
+          <th style="width: 9%;">_id</th>
+          <th style="width: 6%;">uid</th>
+          <th style="width: 8%;">mission_id</th>
+          <th style="width: 5%;">event_id</th>
+          <th style="width: 8%;">function_name</th>
+          <th style="width: 9%;">createdAt</th>
+          <th style="width: 18%;">eye_tracking</th>
+          <th style="width: 8%;">pupil_radius</th>
+          <th style="width: 13%;">摘要（欄位片段）</th>
+          <th style="width: 16%;">完整資料</th>
+        </tr>`;
+
+    function esc(s) {
+      return String(s == null ? '' : s)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+    }
+
+    function buildQuery(limit = 200) {
+      const qs = new URLSearchParams();
+      if (selectedType) qs.set('type', selectedType);
+      const userId = document.getElementById('userId').value.trim();
+      const sessionId = document.getElementById('sessionId').value.trim();
+      if (userId) qs.set('userId', userId);
+      if (sessionId) qs.set('sessionId', sessionId);
+      qs.set('limit', limit);
+      return '/api/recording/records?' + qs.toString();
+    }
+
+    function renderLabCards() {
+      const wrap = document.getElementById('cards-lab');
+      wrap.innerHTML = LAB_MAPPINGS.map(({ type, collection }) => `
+        <div class="collection-card ${dataMode === 'lab' && type === selectedType ? 'active' : ''}" data-mode="lab" data-type="${type}">
+          <div class="c-name">${collection}</div>
+          <div class="c-count">${labCountMap[type] ?? 0} items</div>
+        </div>
+      `).join('');
+      wrap.querySelectorAll('.collection-card').forEach(card => {
+        card.addEventListener('click', () => {
+          dataMode = 'lab';
+          selectedType = card.dataset.type;
+          page = 1;
+          document.getElementById('thead').innerHTML = THEAD_LAB;
+          loadRows();
+        });
+      });
+    }
+
+    function renderVrCards() {
+      const wrap = document.getElementById('cards-vr');
+      wrap.innerHTML = VR_COLLECTIONS.map(key => `
+        <div class="collection-card ${dataMode === 'vr' && key === selectedVr ? 'active' : ''}" data-mode="vr" data-type="${key}">
+          <div class="c-name">${key}</div>
+          <div class="c-count">${vrCountMap[key] ?? 0} items</div>
+        </div>
+      `).join('');
+      wrap.querySelectorAll('.collection-card').forEach(card => {
+        card.addEventListener('click', () => {
+          dataMode = 'vr';
+          selectedVr = card.dataset.type;
+          page = 1;
+          document.getElementById('thead').innerHTML = THEAD_VR;
+          loadRows();
+        });
+      });
+    }
+
+    function pickDate(row) {
+      return row.timestamp || row.createdAt || row.updatedAt || '';
+    }
+
+    function vrRowSnippet(row) {
+      const copy = Object.assign({}, row);
+      delete copy._id;
+      delete copy.__v;
+      const s = JSON.stringify(copy);
+      return s.length > 280 ? s.slice(0, 280) + '…' : s;
+    }
+
+    function formatJsonForDetails(row) {
+      return JSON.stringify(row, null, 2);
+    }
+
+    function formatEyeTrackingCell(value) {
+      if (value === undefined || value === null || value === '') return '—';
+      if (typeof value !== 'string') return JSON.stringify(value);
+      const trimmed = value.trim();
+      if (!trimmed) return '—';
+      try {
+        return JSON.stringify(JSON.parse(trimmed), null, 2);
+      } catch (e) {
+        return trimmed;
+      }
+    }
+
+    function formatChangeValue(v) {
+      if (v === undefined || v === null) return '(空)';
+      if (typeof v === 'string' && v === '') return '(空)';
+      if (Array.isArray(v)) return v.length ? v.join('、') : '(空)';
+      if (typeof v === 'object') return JSON.stringify(v);
+      return String(v);
+    }
+
+    /** 獨立欄位「變更內容」：僅 change 事件顯示 before → after */
+    function formatChangeColumn(row) {
+      const ev = row.eventName || row.action || '';
+      if (ev !== 'change') return '';
+      if (!('beforeValue' in row) && !('afterValue' in row)) return '';
+      const before = formatChangeValue(row.beforeValue);
+      const after = formatChangeValue(row.afterValue);
+      return '「' + before + '」→「' + after + '」';
+    }
+
+    /** Main Content：change 只顯示欄位／題目名稱，具體變更在「變更內容」欄 */
+    function formatMainContent(row) {
+      const ev = row.eventName || row.action || '';
+      if (ev === 'change') {
+        return row.questionTitle || row.targetText || '-';
+      }
+      if (ev === 'click' && row.targetText && /^(日曆圖示-|日期欄位-|input-)/.test(row.targetText)) {
+        return row.targetText;
+      }
+      if (row.questionTitle) return row.questionTitle;
+      if (row.targetText) return row.targetText;
+      if (row.surveyName) return row.surveyName;
+      if (row.action) return row.action;
+      if (row.decision) return row.decision;
+      return JSON.stringify(row).slice(0, 120);
+    }
+
+    function getPageName(row) {
+      return row.stepKey || row.pageName || row.pagePath || '-';
+    }
+
+    function getEvent(row) {
+      return row.eventName || row.action || row.type || '-';
+    }
+
+    function getContentName(row) {
+      return row.contentName || row.surveyName || '-';
+    }
+
+    function eventZh(eventName) {
+      const map = {
+        click: '點擊',
+        input: '輸入',
+        change: '變更',
+        submit: '送出',
+        page_view: '頁面瀏覽',
+        focus: '聚焦',
+        blur: '離開欄位'
+      };
+      return map[eventName] || '其他';
+    }
+
+    function filteredSortedRows() {
+      const keyword = document.getElementById('search').value.trim().toLowerCase();
+      const sortField = document.getElementById('sortField').value;
+      const sortDir = document.getElementById('sortDir').value;
+      let rows = rawRows.slice();
+      if (keyword) {
+        rows = rows.filter(r => JSON.stringify(r).toLowerCase().includes(keyword));
+      }
+      rows.sort((a, b) => {
+        if (dataMode === 'vr') {
+          const ta = new Date(a.createdAt || 0).getTime() || String(a._id);
+          const tb = new Date(b.createdAt || 0).getTime() || String(b._id);
+          if (ta === tb) return 0;
+          return (ta > tb ? 1 : -1) * (sortDir === 'desc' ? -1 : 1);
+        }
+        const av = a?.[sortField] ?? pickDate(a) ?? '';
+        const bv = b?.[sortField] ?? pickDate(b) ?? '';
+        if (av === bv) return 0;
+        return (av > bv ? 1 : -1) * (sortDir === 'desc' ? -1 : 1);
+      });
+      return rows;
+    }
+
+    function formatCsvValue(value) {
+      if (value === undefined || value === null) return '';
+      if (value instanceof Date) return value.toISOString();
+      if (typeof value === 'object') return JSON.stringify(value);
+      return String(value);
+    }
+
+    function escapeCsvCell(value) {
+      const text = formatCsvValue(value);
+      return '"' + text.replaceAll('"', '""') + '"';
+    }
+
+    function csvColumnsForRows(rows) {
+      const preferred = dataMode === 'vr'
+        ? ['_id', 'uid', 'mission_id', 'event_id', 'function_name', 'createdAt', 'updatedAt', 'eye_tracking', 'pupil_radius']
+        : ['_id', 'userId', 'experimentCode', 'sessionId', 'stepKey', 'pageName', 'pagePath', 'contentName', 'surveyName', 'eventName', 'action', 'questionTitle', 'targetText', 'beforeValue', 'afterValue', 'timestamp', 'createdAt', 'updatedAt'];
+      const keys = new Set();
+      rows.forEach((row) => Object.keys(row || {}).forEach((key) => keys.add(key)));
+      const columns = preferred.filter((key) => keys.has(key));
+      keys.forEach((key) => {
+        if (!columns.includes(key)) columns.push(key);
+      });
+      return columns;
+    }
+
+    function csvFileName() {
+      const collection = dataMode === 'vr' ? selectedVr : labCollectionNameByType(selectedType);
+      const userId = document.getElementById('userId').value.trim();
+      const sessionId = document.getElementById('sessionId').value.trim();
+      const search = document.getElementById('search').value.trim();
+      const filters = [userId && `uid-${userId}`, sessionId && `session-${sessionId}`, search && `keyword-${search}`]
+        .filter(Boolean)
+        .join('_');
+      const date = new Date().toISOString().slice(0, 10);
+      return [collection, filters, date].filter(Boolean).join('_').replace(/[\\/:*?"<>|\s]+/g, '-') + '.csv';
+    }
+
+    function downloadCsv() {
+      const rows = filteredSortedRows();
+      if (!rows.length) {
+        alert('目前篩選結果沒有資料可下載');
+        return;
+      }
+      const columns = csvColumnsForRows(rows);
+      const lines = [
+        columns.map(escapeCsvCell).join(','),
+        ...rows.map((row) => columns.map((column) => escapeCsvCell(row[column])).join(','))
+      ];
+      const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = csvFileName();
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function renderTable() {
+      const rows = filteredSortedRows();
+      const pageSize = Number(document.getElementById('pageSize').value || 100);
+      const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+      if (page > totalPages) page = totalPages;
+      const start = (page - 1) * pageSize;
+      const current = rows.slice(start, start + pageSize);
+
+      if (dataMode === 'vr') {
+        document.getElementById('rows').innerHTML = current.map(r => `
+        <tr>
+          <td class="mono">${esc(r._id)}</td>
+          <td>${esc(r.uid != null ? r.uid : '—')}</td>
+          <td>${esc(r.mission_id != null ? r.mission_id : '—')}</td>
+          <td>${esc(r.event_id != null ? r.event_id : '—')}</td>
+          <td>${esc(r.function_name != null ? r.function_name : '—')}</td>
+          <td>${r.createdAt ? esc(new Date(r.createdAt).toLocaleString()) : '—'}</td>
+          <td class="mono eye-cell">${esc(formatEyeTrackingCell(r.eye_tracking))}</td>
+          <td class="mono">${esc(r.pupil_radius != null && r.pupil_radius !== '' ? r.pupil_radius : '—')}</td>
+          <td class="mono">${esc(vrRowSnippet(r))}</td>
+          <td>
+            <details class="row-details">
+              <summary>查看完整資料</summary>
+              <pre class="mono">${esc(formatJsonForDetails(r))}</pre>
+            </details>
+          </td>
+        </tr>
+      `).join('');
+        document.getElementById('summary').textContent = `${rows.length} ${selectedVr} 筆（可關鍵字篩選）`;
+      } else {
+        document.getElementById('rows').innerHTML = current.map(r => {
+          const changeText = formatChangeColumn(r);
+          return `
+        <tr>
+          <td>${esc(r.userId || '-')}</td>
+          <td>${esc(r.experimentCode || '—')}</td>
+          <td>${esc(getPageName(r))}</td>
+          <td>${esc(getContentName(r))}</td>
+          <td>${esc(getEvent(r))}</td>
+          <td>${esc(eventZh(getEvent(r)))}</td>
+          <td>${esc(formatMainContent(r))}</td>
+          <td>${changeText ? esc(changeText) : '—'}</td>
+          <td>${pickDate(r) ? esc(new Date(pickDate(r)).toLocaleString()) : ''}</td>
+        </tr>
+      `;
+        }).join('');
+        document.getElementById('summary').textContent = `${rows.length} 筆 · ${labCollectionNameByType(selectedType)}`;
+      }
+      document.getElementById('pagerText').textContent = `Showing ${rows.length ? (start + 1) : 0}-${Math.min(start + pageSize, rows.length)} of ${rows.length}`;
+      document.getElementById('btnPrev').disabled = page <= 1;
+      document.getElementById('btnNext').disabled = page >= totalPages;
+    }
+
+    async function loadLabCountMap() {
+      const r = await fetch('/api/recording/stats');
+      const d = await r.json();
+      labCountMap = d.success && d.counts ? d.counts : {};
+    }
+
+    async function loadVrCountMap() {
+      const r = await fetch('/api/vr-classroom/summary');
+      const d = await r.json();
+      vrCountMap = d.success && d.byCollection ? d.byCollection : {};
+    }
+
+    async function loadAllCounts() {
+      await Promise.all([loadLabCountMap(), loadVrCountMap()]);
+      renderLabCards();
+      renderVrCards();
+    }
+
+    async function loadRows() {
+      const hardLimit = 1000;
+      if (dataMode === 'vr') {
+        const uid = document.getElementById('userId').value.trim();
+        const qs = new URLSearchParams();
+        qs.set('collection', selectedVr);
+        if (uid) qs.set('uid', uid);
+        qs.set('limit', String(hardLimit));
+        const r = await fetch('/api/vr-classroom/legacy-records?' + qs.toString());
+        const d = await r.json();
+        rawRows = d.success && Array.isArray(d.data) ? d.data : [];
+        renderVrCards();
+        renderTable();
+        return;
+      }
+      const r = await fetch(buildQuery(hardLimit));
+      const d = await r.json();
+      rawRows = d.success && Array.isArray(d.data) ? d.data : [];
+      renderLabCards();
+      renderTable();
+    }
+
+    document.getElementById('btnLoad').addEventListener('click', () => { page = 1; loadAllCounts().then(() => loadRows()); });
+    document.getElementById('btnCsv').addEventListener('click', downloadCsv);
+    document.getElementById('search').addEventListener('input', () => { page = 1; renderTable(); });
+    document.getElementById('sortField').addEventListener('change', renderTable);
+    document.getElementById('sortDir').addEventListener('change', renderTable);
+    document.getElementById('pageSize').addEventListener('change', () => { page = 1; renderTable(); });
+    document.getElementById('btnPrev').addEventListener('click', () => { if (page > 1) { page -= 1; renderTable(); } });
+    document.getElementById('btnNext').addEventListener('click', () => { page += 1; renderTable(); });
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      document.getElementById('thead').innerHTML = THEAD_LAB;
+      await loadAllCounts();
+      await loadRows();
+    });
+  </script>
+</body>
+</html>

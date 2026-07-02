@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>受試者編號</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    html, body {
+      margin: 0;
+      min-height: 0;
+      background: #ffffff;
+    }
+    .set-uid-inner {
+      text-align: center;
+      padding: 0 0 2px;
+    }
+    .set-uid-inner .entry-title {
+      margin: 0 0 1.25rem;
+      font-size: 1.8rem;
+      color: #1f2937;
+    }
+    .entry-field {
+      margin-top: 0.5rem;
+    }
+    .entry-input {
+      width: 100%;
+      max-width: 520px;
+      height: 40px;
+      border: 1px solid #cfd4da;
+      border-radius: 4px;
+      padding: 8px 10px;
+      font-size: 1rem;
+      background: #ffffff;
+    }
+  </style>
+</head>
+<body>
+  <div class="set-uid-inner">
+    <h1 class="entry-title">請輸入受試者編號</h1>
+    <div class="entry-field">
+      <input id="uid-input" class="entry-input" type="text" placeholder="例如：A001" autocomplete="off" spellcheck="false" aria-label="受試者編號">
+    </div>
+  </div>
+
+  <script src="../js/vrSessionUid.js"></script>
+  <script>
+    (function () {
+      var input = document.getElementById('uid-input');
+
+      function sendHeight() {
+        if (!window.parent || window.parent === window) return;
+        var h = Math.max(
+          document.documentElement ? document.documentElement.scrollHeight : 0,
+          document.body ? document.body.scrollHeight : 0
+        );
+        try {
+          window.parent.postMessage({ type: 'vrclass-iframe-height', height: h }, window.location.origin);
+        } catch (e) { /* ignore */ }
+      }
+
+      function notifyState() {
+        var v = (input.value || '').trim();
+        try {
+          if (v) {
+            sessionStorage.setItem('experimentSubjectId', v);
+            if (window.VrSessionUid) {
+              VrSessionUid.set(v, { persistDevice: false });
+            }
+          } else {
+            try { sessionStorage.removeItem('experimentSubjectId'); } catch (e) { /* ignore */ }
+            if (window.VrSessionUid) {
+              VrSessionUid.clear();
+            }
+          }
+        } catch (e) { /* ignore */ }
+        if (window.parent && window.parent !== window) {
+          try {
+            window.parent.postMessage({ type: 'vrclass-set-uid-state', canProceed: !!v }, window.location.origin);
+          } catch (e) { /* ignore */ }
+        }
+        requestAnimationFrame(function () {
+          requestAnimationFrame(sendHeight);
+        });
+      }
+
+      input.addEventListener('input', notifyState);
+
+      input.value = '';
+      notifyState();
+    })();
+  </script>
+</body>
+</html>

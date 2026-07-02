@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "vr:test-post": "node scripts/post-vr-test-rows.js",
+    "emotion-install": "py -3.12 -m pip install -r python/emotion/requirements.txt",
+    "emotion-api": "py -3.12 -m uvicorn emotion_api:app --host 127.0.0.1 --port 8000 --app-dir python/emotion"
   },
   "engines": {
     "node": ">=14.0.0"
@@ -14,6 +17,12 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "mongoose": "^5.13.16"
+    "microsoft-cognitiveservices-speech-sdk": "^1.42.0",
+    "mongoose": "^5.13.16",
+    "multer": "^1.4.5-lts.1",
+    "ws": "^8.18.0"
+  },
+  "optionalDependencies": {
+    "ffmpeg-static": "^5.2.0"
   }
 }

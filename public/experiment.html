@@ -7,24 +7,25 @@
   <link rel="stylesheet" href="styles.css">
   <style>
     .exp-container {
-      max-width: 960px;
+      width: 1110px;
+      max-width: 100%;
       margin: 0 auto;
-      padding: 2rem 1.5rem;
-    }
-    .exp-header {
-      margin-bottom: 1rem;
-    }
-    .exp-meta {
-      color: var(--muted);
-      font-size: 0.9rem;
-      margin-bottom: 0.75rem;
+      padding: 2.25rem 1.25rem 3rem;
     }
     .exp-instruction {
       background: #ffffff;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      padding: 1.5rem;
+      border-radius: 3px;
+      border: 1px solid #d7dfdc;
+      padding: 1.75rem;
       min-height: 200px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+    }
+    .exp-instruction.survey-mode {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 0;
+      min-height: auto;
     }
     .exp-nav {
       margin-top: 1.5rem;
@@ -44,40 +45,373 @@
       border: 1px solid var(--border);
       background: #ffffff;
     }
-    .exp-note {
-      margin-top: 0.75rem;
-      font-size: 0.9rem;
-      color: var(--muted);
+    /* set-uid：內容撐高 iframe，外層白 card 跟著收合 */
+    #exp-content.exp-instruction--set-uid {
+      min-height: 0;
+    }
+    .exp-custom-frame--set-uid {
+      min-height: 0;
+      height: 200px;
+      display: block;
+    }
+    .survey-page {
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px dashed #d7dfdc;
+    }
+    .survey-q {
+      margin-bottom: 1rem;
+      padding: 0.2rem 0;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+    }
+    .survey-q-title {
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+    .survey-choices label {
+      display: block;
+      margin-bottom: 0.35rem;
+    }
+    .survey-wrapper {
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      padding: 0;
+      box-shadow: none;
+    }
+    .survey-material-card {
+      border: 1px solid #d7dfdc;
+      border-radius: 3px;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+    }
+    .survey-material-content {
+      padding: 1.5rem 2rem;
+    }
+    .survey-row {
+      margin-bottom: 1rem;
+    }
+    .survey-center {
+      text-align: center;
+    }
+    .survey-header {
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid #d7dfdc;
+    }
+    .survey-title {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #123524;
+    }
+    .survey-desc {
+      margin-top: 0.5rem;
+      color: #4b5563;
+      font-size: 0.95rem;
+    }
+    .instruction-wrapper {
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      padding: 0;
+      line-height: 1.7;
+    }
+    /* Quill 編輯器輸出樣式相容：讓實驗頁能還原字級與對齊 */
+    .instruction-wrapper p {
+      margin: 0 0 1rem;
+    }
+    .instruction-wrapper .ql-align-center {
+      text-align: center;
+    }
+    .instruction-wrapper .ql-align-right {
+      text-align: right;
+    }
+    .instruction-wrapper .ql-align-justify {
+      text-align: justify;
+    }
+    .instruction-wrapper .ql-size-small {
+      font-size: 0.75em;
+    }
+    .instruction-wrapper .ql-size-large {
+      font-size: 1.5em;
+    }
+    .instruction-wrapper .ql-size-huge {
+      font-size: 2.5em;
+    }
+    .instruction-wrapper img,
+    .instruction-wrapper video,
+    .instruction-wrapper iframe {
+      display: block;
+      max-width: 100%;
+      margin: 1rem 0;
+    }
+    .action-btn {
+      border-radius: 8px;
+      min-width: 92px;
+      border: 1px solid #7aa788;
+      background: #f2faf4;
+      color: #1f5133;
+      padding: 0.4rem 0.85rem;
+    }
+    .action-btn:hover:not([disabled]) {
+      background: #e5f5e9;
+    }
+    .action-btn[disabled] {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .exp-nav-main {
+      margin-top: 1rem;
+      text-align: center;
+    }
+    .primary-next-btn {
+      border-radius: 4px;
+      min-width: 120px;
+      border: 1px solid #7fbf9b;
+      background: #bfead0;
+      color: #13452b;
+      padding: 0.55rem 1.1rem;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .primary-next-btn:hover:not([disabled]) {
+      background: #ace3c2;
+    }
+    .exp-nav-debug {
+      display: none;
+    }
+    .exp-nav-debug.enabled {
+      display: flex;
+    }
+    .survey-next-tip-btn {
+      display: inline-block;
+      border-radius: 2px;
+      background: #26a69a;
+      color: #fff;
+      border: none;
+      padding: 0.5rem 1rem;
+      font-size: 0.95rem;
+      cursor: default;
+      opacity: 0.85;
+    }
+    .survey-material-card {
+      font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif;
+      color: #1f2937;
+    }
+    .survey-page h4 {
+      margin: 0 0 1.15rem;
+      font-size: 46px;
+      line-height: 1.22;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    .survey-q-title {
+      margin-bottom: 0.55rem;
+      font-size: 20px;
+      line-height: 1.35;
+      font-weight: 700;
+      color: #1f2937;
+    }
+    .survey-material-card input[type="text"],
+    .survey-material-card input[type="date"],
+    .survey-material-card select {
+      width: 100%;
+      height: 32px;
+      border: 1px solid #cfd4da;
+      border-radius: 4px;
+      background: #fff;
+      padding: 4px 10px;
+      font-size: 18px;
+      color: #111827;
+      box-sizing: border-box;
+      outline: none;
+    }
+    .survey-material-card input[type="text"]::placeholder {
+      color: #6b7280;
+      font-size: 16px;
+    }
+    .survey-material-card input[type="radio"],
+    .survey-material-card input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    .survey-choices label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 40px;
+      line-height: 1.2;
+      color: #1f2937;
+    }
+    .survey-q {
+      margin-bottom: 2.2rem;
+    }
+    .survey-page-error {
+      color: #b91c1c;
+      font-size: 0.95rem;
+      margin-top: 0.5rem;
+    }
+    .survey-inner-nav {
+      display: flex;
+      justify-content: center;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    .survey-inner-btn {
+      border: 1px solid #27b4a6;
+      border-radius: 3px;
+      background: #28c7b8;
+      color: #ffffff;
+      padding: 0.42rem 1rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .survey-complete-wrap {
+      text-align: center;
+      padding: 2.8rem 1rem 2.2rem;
+    }
+    .survey-complete-title {
+      font-size: 44px;
+      line-height: 1.3;
+      margin: 0 0 3rem;
+      color: #374151;
+      font-weight: 600;
+    }
+    .survey-complete-sub {
+      font-size: 48px;
+      line-height: 1.3;
+      margin: 0 0 2rem;
+      color: #374151;
+      font-weight: 500;
+    }
+    .survey-done-next-btn {
+      border-radius: 3px;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #374151;
+      padding: 0.45rem 1rem;
+      font-size: 0.95rem;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
     }
   </style>
 </head>
 <body>
   <div class="exp-container">
-    <div class="exp-header">
-      <h1 id="exp-title">實驗流程</h1>
-      <p id="exp-meta" class="exp-meta"></p>
-    </div>
-
     <div id="exp-content" class="exp-instruction">
       載入中…
     </div>
 
-    <p class="exp-note">
-      此頁僅示範如何依步驟設定載入指導語 / Survey key / 自訂頁面。Unity 或其他前端可呼叫
-      `/api/experiments/steps/{key}` 取得相同資訊，自行控制體驗流程。
-    </p>
+    <div class="exp-nav-main">
+      <button type="button" id="btn-primary-next" class="primary-next-btn">下一步</button>
+    </div>
 
-    <div class="exp-nav">
-      <button type="button" id="btn-prev">上一頁</button>
-      <button type="button" id="btn-next">下一頁</button>
+    <div class="exp-nav exp-nav-debug" id="exp-nav-debug">
+      <button type="button" id="btn-prev" class="action-btn">上一頁</button>
+      <button type="button" id="btn-next" class="action-btn">下一頁</button>
     </div>
   </div>
 
+  <script src="/setting/js/vrSessionUid.js"></script>
+  <script src="/setting/js/flowStepSort.js"></script>
   <script>
     const expApiBase = '/api/experiments';
     const instApiBase = '/api/instructions';
+    const scaleApiBase = '/api/editing/scales';
+    const recordingApiBase = '/api/recording';
     let flow = [];
     let currentKey = null;
+    let debugNavEnabled = false;
+    let zeroPressCount = 0;
+    let zeroPressTimer = null;
+    let surveyRuntime = null;
+    let currentStepIsSetUid = false;
+    let actionIndex = 0;
+    let stepContentType = '';
+    let stepContentName = '';
+    let experimentCode = '';
+
+    function getUserId() {
+      return sessionStorage.getItem('experimentSubjectId') || 'anonymous';
+    }
+
+    function getSessionId() {
+      let sid = sessionStorage.getItem('experimentSessionId');
+      if (!sid) {
+        sid = 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+        sessionStorage.setItem('experimentSessionId', sid);
+      }
+      return sid;
+    }
+
+    async function ensureExperimentCode() {
+      const cached = sessionStorage.getItem('experimentCode') || '';
+      if (cached) {
+        experimentCode = cached;
+        return;
+      }
+      try {
+        const r = await fetch('/api/experiments/config');
+        const d = await r.json();
+        const code = d?.success ? String(d.data?.experimentCode || '').trim() : '';
+        experimentCode = code || 'study-001';
+      } catch (e) {
+        experimentCode = 'study-001';
+      }
+      sessionStorage.setItem('experimentCode', experimentCode);
+    }
+
+    function normalizeValue(v) {
+      if (Array.isArray(v)) return v.slice();
+      if (v && typeof v === 'object') return JSON.parse(JSON.stringify(v));
+      return v;
+    }
+
+    async function postWebEvent(payload) {
+      try {
+        actionIndex += 1;
+        await fetch(recordingApiBase + '/web-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: getUserId(),
+            sessionId: getSessionId(),
+            experimentCode: experimentCode || undefined,
+            pagePath: window.location.pathname,
+            actionIndex,
+            clientTs: new Date().toISOString(),
+            contentType: payload.contentType || stepContentType || undefined,
+            contentName: payload.contentName || stepContentName || undefined,
+            ...payload
+          })
+        });
+      } catch (e) {
+        console.warn('寫入 web-event 失敗:', e.message);
+      }
+    }
+
+    async function postSurveyFinal(payload) {
+      try {
+        await fetch(recordingApiBase + '/survey-final', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: getUserId(),
+            sessionId: getSessionId(),
+            experimentCode: experimentCode || undefined,
+            pagePath: window.location.pathname,
+            submittedAt: new Date().toISOString(),
+            ...payload
+          })
+        });
+      } catch (e) {
+        console.warn('寫入 survey-final 失敗:', e.message);
+      }
+    }
 
     function getStepIndex(key) {
       return flow.findIndex(s => s.key === key);
@@ -86,25 +420,98 @@
     function updateNavButtons() {
       const idx = getStepIndex(currentKey);
       document.getElementById('btn-prev').disabled = idx <= 0;
-      document.getElementById('btn-next').disabled = idx < 0 || idx >= flow.length - 1;
+      document.getElementById('btn-next').disabled = idx < 0;
+      document.getElementById('btn-primary-next').disabled = idx < 0;
     }
 
     function goToStepByOffset(offset) {
       const idx = getStepIndex(currentKey);
       if (idx < 0) return;
       const next = flow[idx + offset];
-      if (!next) return;
+      if (!next) {
+        if (offset > 0) {
+          window.location.href = '/end';
+        }
+        return;
+      }
       window.location.href = '/experiment/' + encodeURIComponent(next.key);
     }
 
-    document.getElementById('btn-prev').addEventListener('click', () => goToStepByOffset(-1));
-    document.getElementById('btn-next').addEventListener('click', () => goToStepByOffset(1));
+    document.getElementById('btn-prev').addEventListener('click', async () => {
+      await postWebEvent({ pageName: currentKey, stepKey: currentKey, eventName: 'click', targetType: 'button', targetText: '上一頁' });
+      goToStepByOffset(-1);
+    });
+    document.getElementById('btn-next').addEventListener('click', async () => {
+      await postWebEvent({ pageName: currentKey, stepKey: currentKey, eventName: 'click', targetType: 'button', targetText: '下一頁(debug)' });
+      goToStepByOffset(1);
+    });
+    document.getElementById('btn-primary-next').addEventListener('click', async () => {
+      if (currentStepIsSetUid) {
+        const uid = (sessionStorage.getItem('experimentSubjectId') || '').trim();
+        if (!uid) {
+          alert('請輸入受試者編號');
+          return;
+        }
+        if (window.VrSessionUid) {
+          VrSessionUid.set(uid, { persistDevice: false });
+        }
+      }
+      await postWebEvent({ pageName: currentKey, stepKey: currentKey, eventName: 'click', targetType: 'button', targetText: '下一步' });
+      goToStepByOffset(1);
+    });
+
+    window.addEventListener('message', async (ev) => {
+      if (ev.origin !== window.location.origin) return;
+      const d = ev.data;
+      if (!d) return;
+      if (d.type === 'vrclass-experiment-flow-next') {
+        await postWebEvent({ pageName: currentKey, stepKey: currentKey, eventName: 'click', targetType: 'button', targetText: '下一步' });
+        goToStepByOffset(1);
+        return;
+      }
+      if (d.type === 'vrclass-iframe-height' && d.height) {
+        const ifr = document.querySelector('#exp-content iframe.exp-custom-frame--set-uid');
+        if (ifr) {
+          ifr.style.height = Math.max(100, Math.round(d.height)) + 'px';
+        }
+        return;
+      }
+      if (d.type === 'vrclass-set-uid-state' && typeof d.canProceed === 'boolean') {
+        document.getElementById('btn-primary-next').disabled = !d.canProceed;
+      }
+    });
+
+    function setPrimaryNextVisible(visible) {
+      document.getElementById('btn-primary-next').style.display = visible ? 'inline-block' : 'none';
+    }
+
+    function updateDebugNav() {
+      const nav = document.getElementById('exp-nav-debug');
+      nav.classList.toggle('enabled', debugNavEnabled);
+    }
+
+    function setupDebugHotkey() {
+      document.addEventListener('keydown', (e) => {
+        if (e.key === '0' || e.code === 'Numpad0') {
+          zeroPressCount += 1;
+          if (zeroPressTimer) clearTimeout(zeroPressTimer);
+          zeroPressTimer = setTimeout(() => { zeroPressCount = 0; }, 2000);
+          if (zeroPressCount >= 8) {
+            debugNavEnabled = !debugNavEnabled;
+            zeroPressCount = 0;
+            updateDebugNav();
+          }
+        } else {
+          zeroPressCount = 0;
+        }
+      });
+    }
 
     async function loadFlow() {
       const r = await fetch(expApiBase + '/flow?flowKey=default');
       const d = await r.json();
       if (d.success && Array.isArray(d.data)) {
-        flow = d.data.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        flow = d.data.slice().sort(compareFlowSteps);
       } else {
         flow = [];
       }
@@ -116,28 +523,497 @@
     }
 
     async function loadStep() {
-      const res = await fetch(expApiBase + '/steps/' + encodeURIComponent(currentKey));
-      const d = await res.json();
-      if (!d.success || !d.data) {
-        document.getElementById('exp-title').textContent = '找不到步驟';
-        document.getElementById('exp-content').textContent = d.message || '請確認步驟 key 是否正確。';
+      const stepUrl = expApiBase + '/steps/' + encodeURIComponent(currentKey);
+      let res;
+      let d = null;
+      try {
+        res = await fetch(stepUrl);
+        const text = await res.text();
+        try {
+          d = text ? JSON.parse(text) : {};
+        } catch (e) {
+          d = { success: false, message: '回應不是 JSON', _raw: text.slice(0, 500) };
+        }
+      } catch (e) {
+        const err = e && e.message ? e.message : String(e);
+        console.error('[實驗] 載入步驟網路錯誤', { currentKey, stepUrl, error: err });
+        document.getElementById('exp-content').textContent = '無法取得步驟：' + err;
+        return;
+      }
+      if (!d || !d.success || !d.data) {
+        const errMsg = (d && d.message) || '請確認步驟 key 是否正確。';
+        console.error('[實驗] 載入步驟失敗', {
+          currentKey,
+          path: window.location.pathname,
+          stepUrl,
+          httpStatus: res.status,
+          body: d
+        });
+        const c = document.getElementById('exp-content');
+        c.innerHTML = '';
+        c.appendChild(document.createTextNode(errMsg));
+        if (d && d.debug) {
+          c.appendChild(document.createElement('br'));
+          c.appendChild(document.createElement('br'));
+          const pre = document.createElement('pre');
+          pre.className = 'exp-debug';
+          pre.style.cssText = 'text-align:left;font-size:0.82rem;color:#4b5563;white-space:pre-wrap;word-break:break-all;margin:0.75rem 0 0;padding:0.75rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;max-width:100%;';
+          pre.textContent = 'debug（F12 主控台亦有紀錄）：\n' + JSON.stringify(d.debug, null, 2);
+          c.appendChild(pre);
+        }
         return;
       }
       const step = d.data;
-      document.getElementById('exp-title').textContent = step.name || ('步驟 ' + step.key);
-      document.getElementById('exp-meta').textContent =
-        '步驟 key：' + step.key + ' · 類型：' + step.type +
-        (step.type === 'custom' && step.customPath ? ' · 自訂頁面：' + step.customPath : '') +
-        ((step.type === 'survey' || step.type === 'instruction') && step.refKey ? ' · 對應 key：' + step.refKey : '');
+      stepContentType = step.type || '';
+      stepContentName = '';
+      await postWebEvent({
+        pageName: step.key,
+        stepKey: step.key,
+        eventName: 'page_view',
+        targetType: 'page',
+        targetText: step.type
+      });
 
       const container = document.getElementById('exp-content');
+      container.classList.remove('survey-mode', 'exp-instruction--set-uid');
+      container.innerHTML = '';
+      surveyRuntime = null;
+      currentStepIsSetUid = false;
+
+      let showPrimaryNext = step.type !== 'survey';
+      setPrimaryNextVisible(showPrimaryNext);
+
+      function escapeHtml(text) {
+        return String(text || '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
+
+      function bindContainerClickTracking(scopeEl, pageName, options = {}) {
+        const ignoreSurveyInputs = !!options.ignoreSurveyInputs;
+        scopeEl.onclick = async (evt) => {
+          const t = evt.target;
+          if (!t) return;
+          if (ignoreSurveyInputs) {
+            const tag = (t.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || tag === 'select' || tag === 'option' || tag === 'label') {
+              return;
+            }
+          }
+          const text = (t.innerText || t.value || t.alt || t.tagName || '').trim().slice(0, 120);
+          await postWebEvent({
+            pageName,
+            stepKey: step.key,
+            eventName: 'click',
+            targetType: (t.tagName || '').toLowerCase(),
+            targetText: text
+          });
+        };
+      }
+
+      function renderSurveyFromJson(json) {
+        container.classList.add('survey-mode');
+        const pages = Array.isArray(json?.pages) ? json.pages : [];
+        if (!pages.length) {
+          container.textContent = '量表內容為空（surveyJson.pages 不存在）。';
+          return;
+        }
+        surveyRuntime = {
+          pages,
+          pageIndex: 0,
+          answers: {},
+          completed: false,
+          surveyId: step.refKey || '',
+          surveyName: json.title || '量表',
+          questionMeta: {}
+        };
+
+        function readAnswer(name, type) {
+          if (!name) return undefined;
+          if (type === 'checkbox') {
+            return Array.from(container.querySelectorAll(`input[name="${name}"]:checked`)).map(x => x.value);
+          }
+          if (type === 'radiogroup' || type === 'rating') {
+            const checked = container.querySelector(`input[name="${name}"]:checked`);
+            return checked ? checked.value : '';
+          }
+          const field = container.querySelector(`[name="${name}"]`);
+          return field ? field.value : '';
+        }
+
+        function writeAnswer(name, type, value) {
+          if (!name) return;
+          if (type === 'checkbox') {
+            const vals = Array.isArray(value) ? value : [];
+            container.querySelectorAll(`input[name="${name}"]`).forEach((node) => {
+              node.checked = vals.includes(node.value);
+            });
+            return;
+          }
+          if (type === 'radiogroup' || type === 'rating') {
+            container.querySelectorAll(`input[name="${name}"]`).forEach((node) => {
+              node.checked = String(node.value) === String(value || '');
+            });
+            return;
+          }
+          const field = container.querySelector(`[name="${name}"]`);
+          if (field) field.value = value || '';
+        }
+
+        function validatePage(pageIdx) {
+          const page = surveyRuntime.pages[pageIdx];
+          const elements = Array.isArray(page?.elements) ? page.elements : [];
+          for (let i = 0; i < elements.length; i++) {
+            const el = elements[i];
+            const name = el.name || '';
+            const val = surveyRuntime.answers[name];
+            if (el.isRequired) {
+              if (Array.isArray(val) && !val.length) return false;
+              if (!Array.isArray(val) && (val === undefined || val === null || String(val).trim() === '')) return false;
+            }
+          }
+          return true;
+        }
+
+        function validateAllPages() {
+          for (let i = 0; i < surveyRuntime.pages.length; i++) {
+            if (!validatePage(i)) return false;
+          }
+          return true;
+        }
+
+        function renderSurveyDoneView() {
+          const parts = [];
+          parts.push(`<div class="survey-wrapper survey-material-card">`);
+          parts.push(`<div class="survey-material-content">`);
+          parts.push(`<div class="survey-complete-wrap">`);
+          parts.push(`<p class="survey-complete-title">基本資料問卷填寫完成</p>`);
+          parts.push(`<p class="survey-complete-sub">請按下一步繼續</p>`);
+          parts.push(`</div>`);
+          parts.push(`</div>`);
+          parts.push(`</div>`);
+          container.innerHTML = parts.join('');
+        }
+
+        function renderCurrentPage(errorText = '') {
+          const pIdx = surveyRuntime.pageIndex;
+          const page = surveyRuntime.pages[pIdx];
+          const elements = Array.isArray(page?.elements) ? page.elements : [];
+          const parts = [];
+          parts.push(`<div class="survey-wrapper survey-material-card">`);
+          parts.push(`<div class="survey-material-content">`);
+          parts.push(`<div class="survey-page survey-row">`);
+          parts.push(`<h4>${escapeHtml(page.title || ('第 ' + (pIdx + 1) + ' 頁'))}</h4>`);
+          elements.forEach((el, qIdx) => {
+            const qName = escapeHtml(el.name || ('q_' + pIdx + '_' + qIdx));
+            const qTitle = escapeHtml(el.title || el.name || ('題目 ' + (qIdx + 1)));
+            parts.push(`<div class="survey-q" data-qname="${qName}" data-qtype="${escapeHtml(el.type || 'text')}">`);
+            parts.push(`<div class="survey-q-title">${qTitle}${el.isRequired ? ' <span style="color:#dc2626">*</span>' : ''}</div>`);
+            if (el.type === 'radiogroup') {
+              parts.push(`<div class="survey-choices">`);
+              (el.choices || []).forEach((c, i) => {
+                const val = typeof c === 'string' ? c : (c.value || c.text || ('選項' + (i + 1)));
+                const label = typeof c === 'string' ? c : (c.text || c.value || ('選項' + (i + 1)));
+                parts.push(`<label><input type="radio" name="${qName}" value="${escapeHtml(val)}"> ${escapeHtml(label)}</label>`);
+              });
+              parts.push(`</div>`);
+            } else if (el.type === 'checkbox') {
+              parts.push(`<div class="survey-choices">`);
+              (el.choices || []).forEach((c, i) => {
+                const val = typeof c === 'string' ? c : (c.value || c.text || ('選項' + (i + 1)));
+                const label = typeof c === 'string' ? c : (c.text || c.value || ('選項' + (i + 1)));
+                parts.push(`<label><input type="checkbox" name="${qName}" value="${escapeHtml(val)}"> ${escapeHtml(label)}</label>`);
+              });
+              parts.push(`</div>`);
+            } else if (el.type === 'dropdown') {
+              parts.push(`<select name="${qName}" style="min-width:220px;">`);
+              parts.push(`<option value="">請選擇</option>`);
+              (el.choices || []).forEach((c, i) => {
+                const val = typeof c === 'string' ? c : (c.value || c.text || ('選項' + (i + 1)));
+                const label = typeof c === 'string' ? c : (c.text || c.value || ('選項' + (i + 1)));
+                parts.push(`<option value="${escapeHtml(val)}">${escapeHtml(label)}</option>`);
+              });
+              parts.push(`</select>`);
+            } else if (el.type === 'rating') {
+              const rateMax = Number(el.rateMax || 5);
+              parts.push(`<div class="survey-choices">`);
+              for (let i = 1; i <= rateMax; i++) {
+                parts.push(`<label style="display:inline-block;margin-right:0.75rem;"><input type="radio" name="${qName}" value="${i}"> ${i}</label>`);
+              }
+              parts.push(`</div>`);
+            } else {
+              const inputType = el.inputType === 'date' ? 'date' : 'text';
+              const placeholder = inputType === 'date' ? '' : '請輸入';
+              parts.push(`<input type="${inputType}" name="${qName}" style="width:100%;" placeholder="${placeholder}">`);
+            }
+            parts.push(`</div>`);
+          });
+          if (errorText) {
+            parts.push(`<div class="survey-page-error">${escapeHtml(errorText)}</div>`);
+          }
+          parts.push(`<div class="survey-inner-nav">`);
+          parts.push(`<button type="button" class="survey-inner-btn" id="survey-page-next">${pIdx >= surveyRuntime.pages.length - 1 ? '送出' : '下一頁'}</button>`);
+          parts.push(`</div>`);
+          parts.push(`</div>`);
+          parts.push(`</div>`);
+          parts.push(`</div>`);
+          container.innerHTML = parts.join('');
+
+          elements.forEach((el, qIdx) => {
+            const rawName = el.name || ('q_' + pIdx + '_' + qIdx);
+            surveyRuntime.questionMeta[rawName] = {
+              questionName: rawName,
+              questionTitle: el.title || el.name || ('題目 ' + (qIdx + 1)),
+              questionType: el.type || 'text',
+              required: !!el.isRequired,
+              pageNo: pIdx + 1,
+              pageTitle: page.title || ('第 ' + (pIdx + 1) + ' 頁')
+            };
+            writeAnswer(rawName, el.type || 'text', surveyRuntime.answers[rawName]);
+          });
+
+          elements.forEach((el, qIdx) => {
+            const rawName = el.name || ('q_' + pIdx + '_' + qIdx);
+            const type = el.type || 'text';
+            const clickLogState = {};
+            function canLogQuestionClick(dedupeKey) {
+              const key = dedupeKey || rawName;
+              const now = Date.now();
+              const last = clickLogState[key] || 0;
+              if (now - last < 180) return false;
+              clickLogState[key] = now;
+              return true;
+            }
+            /** 原生 date input：依點擊 X 座標區分右側日曆圖示區 vs 左側日期文字區（RTL 相反） */
+            function getDateInputClickZone(field, evt) {
+              if (!field || field.type !== 'date' || !evt) return 'field';
+              const rect = field.getBoundingClientRect();
+              const w = rect.width;
+              if (w < 8) return 'field';
+              const rtl = getComputedStyle(field).direction === 'rtl';
+              const x = evt.clientX - rect.left;
+              const iconW = Math.min(48, Math.max(22, w * 0.22));
+              const onCalendar = rtl ? (x < iconW) : (x > w - iconW);
+              return onCalendar ? 'calendar' : 'field';
+            }
+            async function postQuestionClick() {
+              const meta = surveyRuntime.questionMeta[rawName] || {};
+              if (!canLogQuestionClick(rawName)) return;
+              await postWebEvent({
+                pageName: step.key,
+                stepKey: step.key,
+                surveyId: surveyRuntime.surveyId,
+                surveyName: surveyRuntime.surveyName,
+                surveyPageNo: meta.pageNo,
+                surveyPageTitle: meta.pageTitle,
+                questionName: rawName,
+                questionTitle: meta.questionTitle,
+                eventName: 'click',
+                targetType: type,
+                targetText: meta.questionTitle
+              });
+            }
+            if (type === 'checkbox' || type === 'radiogroup' || type === 'rating') {
+              container.querySelectorAll(`[name="${rawName}"]`).forEach((node) => {
+                node.addEventListener('click', postQuestionClick);
+                node.addEventListener('focus', postQuestionClick);
+                node.addEventListener('change', async () => {
+                  const before = normalizeValue(surveyRuntime.answers[rawName]);
+                  const after = normalizeValue(readAnswer(rawName, type));
+                  surveyRuntime.answers[rawName] = after;
+                  const meta = surveyRuntime.questionMeta[rawName] || {};
+                  await postWebEvent({
+                    pageName: step.key,
+                    stepKey: step.key,
+                    surveyId: surveyRuntime.surveyId,
+                    surveyName: surveyRuntime.surveyName,
+                    surveyPageNo: meta.pageNo,
+                    surveyPageTitle: meta.pageTitle,
+                    questionName: rawName,
+                    questionTitle: meta.questionTitle,
+                    eventName: 'change',
+                    targetType: type,
+                    targetText: meta.questionTitle,
+                    beforeValue: before,
+                    afterValue: after,
+                    valueType: Array.isArray(after) ? 'array' : typeof after
+                  });
+                });
+              });
+            } else {
+              const field = container.querySelector(`[name="${rawName}"]`);
+              if (field) {
+                async function postInputQuestionClick(evt) {
+                  const meta = surveyRuntime.questionMeta[rawName] || {};
+                  const title = meta.questionTitle || rawName;
+                  let targetText = 'input-' + title;
+                  let dedupeKey = rawName + '|input';
+                  let extra;
+                  if (field.type === 'date' && evt) {
+                    const zone = getDateInputClickZone(field, evt);
+                    const zoneKey = zone === 'calendar' ? 'cal' : 'field';
+                    const prevZones = (field.dataset.dateZonesClicked || '').split('|').filter(Boolean);
+                    if (prevZones.includes(zoneKey)) {
+                      return;
+                    }
+                    field.dataset.dateZonesClicked = prevZones.concat(zoneKey).join('|');
+                    if (zone === 'calendar') {
+                      targetText = '日曆圖示-' + title;
+                      dedupeKey = rawName + '|date-cal';
+                      extra = { dateClickZone: 'calendar_icon' };
+                    } else {
+                      targetText = '日期欄位-' + title;
+                      dedupeKey = rawName + '|date-field';
+                      extra = { dateClickZone: 'date_field' };
+                    }
+                  }
+                  if (!canLogQuestionClick(dedupeKey)) return;
+                  return postWebEvent({
+                    pageName: step.key,
+                    stepKey: step.key,
+                    surveyId: surveyRuntime.surveyId,
+                    surveyName: surveyRuntime.surveyName,
+                    surveyPageNo: meta.pageNo,
+                    surveyPageTitle: meta.pageTitle,
+                    questionName: rawName,
+                    questionTitle: meta.questionTitle,
+                    eventName: 'click',
+                    targetType: field.type === 'date' ? 'date' : type,
+                    targetText,
+                    extra
+                  });
+                }
+                field.addEventListener('click', async (e) => {
+                  await postInputQuestionClick(e);
+                });
+                field.addEventListener('focus', () => {
+                  field.dataset.beforeValue = JSON.stringify(normalizeValue(readAnswer(rawName, type)) ?? '');
+                  if (field.type === 'date') {
+                    field.dataset.dateZonesClicked = '';
+                  }
+                });
+                field.addEventListener('blur', async () => {
+                  if (field.type === 'date') {
+                    field.dataset.dateZonesClicked = '';
+                  }
+                  const before = field.dataset.beforeValue
+                    ? JSON.parse(field.dataset.beforeValue)
+                    : normalizeValue(surveyRuntime.answers[rawName]);
+                  const after = normalizeValue(readAnswer(rawName, type));
+                  surveyRuntime.answers[rawName] = after;
+                  const same = JSON.stringify(before ?? '') === JSON.stringify(after ?? '');
+                  if (same) return;
+                  const meta = surveyRuntime.questionMeta[rawName] || {};
+                  await postWebEvent({
+                    pageName: step.key,
+                    stepKey: step.key,
+                    surveyId: surveyRuntime.surveyId,
+                    surveyName: surveyRuntime.surveyName,
+                    surveyPageNo: meta.pageNo,
+                    surveyPageTitle: meta.pageTitle,
+                    questionName: rawName,
+                    questionTitle: meta.questionTitle,
+                    eventName: 'change',
+                    targetType: type,
+                    targetText: meta.questionTitle,
+                    beforeValue: before,
+                    afterValue: after,
+                    valueType: typeof after
+                  });
+                });
+              }
+            }
+          });
+
+          document.getElementById('survey-page-next').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            // 先同步本頁答案，再驗證
+            elements.forEach((el, qIdx) => {
+              const rawName = el.name || ('q_' + pIdx + '_' + qIdx);
+              surveyRuntime.answers[rawName] = readAnswer(rawName, el.type || 'text');
+            });
+            const isLastPage = pIdx >= surveyRuntime.pages.length - 1;
+            // 僅「下一頁」記 click；最後一頁「送出」只記 submit，避免與外層 container 冒泡重複、也避免與 submit 重複
+            if (!isLastPage) {
+              await postWebEvent({
+                pageName: step.key,
+                stepKey: step.key,
+                surveyId: surveyRuntime.surveyId,
+                surveyName: surveyRuntime.surveyName,
+                surveyPageNo: pIdx + 1,
+                surveyPageTitle: page.title || ('第 ' + (pIdx + 1) + ' 頁'),
+                eventName: 'click',
+                targetType: 'button',
+                targetText: '下一頁'
+              });
+            }
+            if (!validatePage(surveyRuntime.pageIndex)) {
+              renderCurrentPage('本頁有必填題未完成，請先填寫後再繼續。');
+              return;
+            }
+            if (surveyRuntime.pageIndex < surveyRuntime.pages.length - 1) {
+              surveyRuntime.pageIndex += 1;
+              renderCurrentPage();
+              return;
+            }
+            if (!validateAllPages()) {
+              renderCurrentPage('尚有必填題未完成，請先完成整份問卷。');
+              return;
+            }
+            surveyRuntime.completed = true;
+            const finalAnswers = Object.entries(surveyRuntime.answers).map(([questionName, answer]) => {
+              const meta = surveyRuntime.questionMeta[questionName] || {};
+              return {
+                pageNo: meta.pageNo,
+                pageTitle: meta.pageTitle,
+                questionName,
+                questionTitle: meta.questionTitle,
+                questionType: meta.questionType,
+                required: meta.required,
+                answer
+              };
+            });
+            await postSurveyFinal({
+              pageName: step.key,
+              stepKey: step.key,
+              surveyId: surveyRuntime.surveyId,
+              surveyName: surveyRuntime.surveyName,
+              answers: finalAnswers,
+              extra: {
+                questionCount: Object.keys(surveyRuntime.questionMeta).length,
+                totalPages: surveyRuntime.pages.length
+              }
+            });
+            await postWebEvent({
+              pageName: step.key,
+              stepKey: step.key,
+              surveyId: surveyRuntime.surveyId,
+              surveyName: surveyRuntime.surveyName,
+              eventName: 'submit',
+              targetType: 'survey',
+              targetText: '問卷送出',
+              extra: { answerCount: finalAnswers.length }
+            });
+            setPrimaryNextVisible(true);
+            renderSurveyDoneView();
+          });
+        }
+
+        setPrimaryNextVisible(false);
+        renderCurrentPage();
+      }
 
       if (step.type === 'instruction' && step.refKey) {
         try {
           const r2 = await fetch(instApiBase + '/by-key/' + encodeURIComponent(step.refKey));
           const d2 = await r2.json();
           if (d2.success && d2.data) {
-            container.innerHTML = d2.data.html || '(指導語內容為空)';
+            stepContentName = d2.data.name || d2.data.key || '';
+            container.innerHTML = `<div class="instruction-wrapper">${d2.data.html || '(指導語內容為空)'}</div>`;
+            bindContainerClickTracking(container, step.key);
           } else {
             container.textContent = d2.message || '找不到指導語：' + step.refKey;
           }
@@ -145,23 +1021,83 @@
           container.textContent = '載入指導語時發生錯誤：' + e.message;
         }
       } else if (step.type === 'custom' && step.customPath) {
+        const isSetUid = /set-uid\.html/i.test(String(step.customPath));
+        currentStepIsSetUid = isSetUid;
+        if (isSetUid) {
+          container.classList.add('exp-instruction--set-uid');
+        }
         container.innerHTML = '';
         const iframe = document.createElement('iframe');
-        iframe.className = 'exp-custom-frame';
+        iframe.className = isSetUid ? 'exp-custom-frame exp-custom-frame--set-uid' : 'exp-custom-frame';
         iframe.src = step.customPath;
         container.appendChild(iframe);
+        if (isSetUid) {
+          document.getElementById('btn-primary-next').disabled = true;
+        }
+        bindContainerClickTracking(container, step.key);
+      } else if (step.type === 'gptfeedback' && step.customPath) {
+        container.innerHTML = '';
+        try {
+          const promptText = step.gptPrompt != null ? String(step.gptPrompt) : '';
+          sessionStorage.setItem('vrGptPrompt:' + step.key, promptText);
+        } catch (err) {
+          console.warn('寫入 GPT 提示到 sessionStorage 失敗', err);
+        }
+        const iframe = document.createElement('iframe');
+        iframe.className = 'exp-custom-frame';
+        const hasQuery = String(step.customPath).indexOf('?') >= 0;
+        iframe.src = step.customPath + (hasQuery ? '&' : '?') + 'gptStep=' + encodeURIComponent(step.key);
+        container.appendChild(iframe);
+        bindContainerClickTracking(container, step.key);
       } else if (step.type === 'survey') {
-        container.innerHTML = `
-          <p>此步驟類型為 <strong>survey</strong>。</p>
-          <p>對應 key：<code>${step.refKey || '(未設定)'}</code></p>
-          <p class="muted">Unity 或其他前端可根據此 key 決定載入哪個量表、情境或 IVR 模擬。</p>
-        `;
+        if (!step.refKey) {
+          container.textContent = '此 survey 步驟尚未綁定量表（refKey 為空）。';
+          return;
+        }
+        try {
+          const rs = await fetch(scaleApiBase + '/' + encodeURIComponent(step.refKey));
+          const ds = await rs.json();
+          if (!ds.success || !ds.data) {
+            container.textContent = ds.message || ('找不到量表：' + step.refKey);
+            return;
+          }
+          const scale = ds.data;
+          // 優先使用 SurveyJS JSON；若沒有則回退舊 items 結構轉換
+          let surveyJson = scale.surveyJson;
+          if (!surveyJson && Array.isArray(scale.items) && scale.items.length) {
+            surveyJson = {
+              title: scale.title || '量表',
+              pages: [{
+                name: 'p1',
+                title: scale.description || '問卷',
+                elements: scale.items.map((it, idx) => ({
+                  type: it.type === 'single' ? 'radiogroup' : it.type === 'multiple' ? 'checkbox' : 'text',
+                  name: 'q' + idx,
+                  title: it.question,
+                  choices: it.options || []
+                }))
+              }]
+            };
+          }
+          if (!surveyJson) {
+            container.textContent = '量表已找到，但沒有可顯示的題目內容。';
+            return;
+          }
+          stepContentName = scale.title || surveyJson.title || '';
+          renderSurveyFromJson(surveyJson);
+          bindContainerClickTracking(container, step.key, { ignoreSurveyInputs: true });
+        } catch (e) {
+          container.textContent = '載入量表時發生錯誤：' + e.message;
+        }
       } else {
         container.textContent = '此步驟尚未設定完整（類型或 key/path 缺少）。';
       }
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
+      setupDebugHotkey();
+      updateDebugNav();
+      await ensureExperimentCode();
       getCurrentStepFromUrl();
       await loadFlow();
       updateNavButtons();

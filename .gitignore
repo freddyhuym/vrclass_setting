@@ -12,5 +12,13 @@ dist/
 build/
 coverage/
 
+uploads/
+temp/
+
+# Python 情緒分析服務（python/emotion）
+python/emotion/__pycache__/
+python/emotion/**/__pycache__/
+*.pyc
+
 .DS_Store
 Thumbs.db

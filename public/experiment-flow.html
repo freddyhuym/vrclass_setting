@@ -26,6 +26,17 @@
     .flow-type-select, .flow-input {
       width: 100%;
     }
+    .flow-custom-cell .flow-input[data-field="target-custom-pick"] {
+      width: 100%;
+    }
+    .flow-gpt-cell .flow-input[data-field="target-gpt-pick"] { width: 100%; }
+    .flow-gpt-prompt-box { margin-top: 0.35rem; }
+    .flow-gpt-prompt-box > summary {
+      cursor: pointer;
+      font-size: 0.88rem;
+      color: var(--accent, #2563eb);
+      user-select: none;
+    }
   </style>
 </head>
 <body>
@@ -41,19 +52,24 @@
     <a href="/setting/survey-editor">量表編輯</a>
     <a href="/setting/instruction">指導語設定</a>
     <a href="/setting/experiment-flow" class="nav-link active">實驗流程編輯</a>
+    <a href="/setting/experiment-id">實驗編號設定</a>
   </nav>
 
   <main class="main main-wide">
     <section class="card">
       <h2>流程步驟（預設流程 default）</h2>
+      <p class="muted">使用 <strong>上移／下移、刪除、新增、載入本頁</strong> 後，會依順序<strong>自動將步驟 key 與顯示名稱定為</strong> <code>step1</code>、<code>step2</code>、… 與網址 <code>/experiment/step1</code> 等一致。</p>
       <p class="muted">每個步驟的 <strong>步驟 key</strong> 會對應網址 `/experiment/{步驟 key}`。<br>
         - 類型為 <strong>survey</strong> 時，請在「對應 key / 路徑」填入量表或情境的 key。<br>
         - 類型為 <strong>instruction</strong> 時，填入指導語的 key（`Instruction.key`）。<br>
-        - 類型為 <strong>custom</strong> 時，填入自訂 HTML 路徑，例如 `/custom/intro.html`。</p>
-      <div style="margin-bottom:0.75rem;">
+        - 類型為 <strong>custom</strong> 時，將自訂 HTML 放在專案 <code>public/custom/</code> 下，路徑如 <code>/setting/custom/檔名.html</code>，與 <strong>gptfeedback</strong> 分開。<br>
+        - 類型為 <strong>gptfeedback</strong> 時，頁面放 <code>public/gptfeedback/</code>，路徑如 <code>/setting/gptfeedback/檔名.html</code>，並可展開「編輯 GPT 提示詞」輸入給模型用的內容（執行實驗時會寫入 sessionStorage 供內嵌頁讀取）。</p>
+      <div style="margin-bottom:0.75rem; display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem;">
         <button type="button" id="btn-add-step">新增步驟</button>
-        <button type="button" id="btn-save-flow" style="margin-left:0.5rem;">儲存流程</button>
+        <button type="button" id="btn-save-flow">儲存流程</button>
+        <button type="button" id="btn-refresh-custom" title="掃描 public/custom 與 public/gptfeedback 的 .html">重新偵測可選頁面</button>
         <span id="flow-msg"></span>
+        <span id="custom-detect-hint" class="muted" style="font-size:0.85rem;width:100%;"></span>
       </div>
       <table class="flow-table">
         <thead>
@@ -62,7 +78,7 @@
             <th style="width:140px;">步驟 key</th>
             <th style="width:180px;">名稱（顯示用）</th>
             <th style="width:130px;">類型</th>
-            <th>對應 key / 路徑</th>
+            <th>對應 key / 路徑 <span class="muted" style="font-weight:400">（gpt：路徑＝.html 網址，提示只寫在展開的 GPT 提示框）</span></th>
             <th style="width:140px;">操作</th>
           </tr>
         </thead>
@@ -75,27 +91,82 @@
 - 實驗頁 `/experiment/{步驟 key}` 會呼叫 `/api/experiments/steps/{key}` 取得設定：
   - type = "instruction" 時，可再呼叫 `/api/instructions/by-key/{refKey}` 取得指導語 HTML。
   - type = "survey" 時，前端/Unity 可依 `refKey` 決定載入哪個量表或情境。
-  - type = "custom" 時，可透過 `customPath` 載入自訂頁面。
+  - type = "custom" 時，以 `customPath` iframe 載入（建議 `/setting/custom/...`）。<br>
+  - type = "gptfeedback" 時，以 `customPath` iframe 載入（<strong>必須是</strong> `/setting/gptfeedback/xxx.html` 這類路徑）；<strong>給模型看的長段文字只填在</strong>「編輯 GPT 提示詞」(gptPrompt)。送後端 GPT 與綜合回饋的 uid／prompt 皆由內嵌頁 <code>POST /api/gpt-vr/analyze</code> 的 JSON body 傳出，<strong>與網址列的 /experiment/step3 之 step key 無關</strong>。若把提示詞誤貼在「路徑」欄，會導致頁面網址錯亂。內嵌網址並帶 <code>?gptStep={步驟key}</code> 供內嵌頁讀 sessionStorage 內的提示。
       </div>
     </section>
   </main>
 
+  <script src="/setting/js/flowStepSort.js"></script>
   <script>
     const apiBase = '/api/experiments';
     let steps = [];
     let instructionOptions = [];
     let scaleOptions = [];
+    let customPageOptions = [];
+    let gptfeedbackPageOptions = [];
+    /** 後端掃描失敗訊息 */
+    let customPageListError = '';
+    let gptPageListError = '';
+
+    function escAttr(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+    function escHtml(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
 
     function showMsg(text, isErr) {
       const el = document.getElementById('flow-msg');
       el.innerHTML = text ? '<span class="msg ' + (isErr ? 'error' : 'success') + '">' + text + '</span>' : '';
     }
 
+    /** 偵測 gpt 路徑欄被誤填成「提示詞本文」（非 / 開頭），移入 gptPrompt 並改綁專用 .html */
+    function pickDefaultGptHtmlPath() {
+      if (gptfeedbackPageOptions && gptfeedbackPageOptions.length) {
+        const byName = gptfeedbackPageOptions.find(p => p.path && /vr-uid-gpt\.html/i.test(p.path));
+        if (byName && byName.path) return byName.path;
+        return gptfeedbackPageOptions[0].path;
+      }
+      return '/setting/gptfeedback/vr-uid-gpt.html';
+    }
+
+    function repairGptfeedbackMistake(s) {
+      if (!s || s.type !== 'gptfeedback') return s;
+      const cp = s.customPath != null ? String(s.customPath).trim() : '';
+      if (!cp || cp.indexOf('/') === 0) return s;
+      const mistaken = cp;
+      const existing = s.gptPrompt != null ? String(s.gptPrompt).trim() : '';
+      return {
+        ...s,
+        customPath: pickDefaultGptHtmlPath(),
+        gptPrompt: existing || mistaken
+      };
+    }
+
+    /** 顯示順序與資料同步：以 order 排序的淺拷貝（用於上下移、刪除，避免實際 steps 陣列順序與畫面不一致） */
+    function getStepsSorted() {
+      return steps.slice().sort(compareFlowSteps);
+    }
+    /** 依畫面順序將 步驟 key／名稱 定為 step1、step2、…（實驗網址為 /experiment/該 key） */
+    function renumberStepKeysInOrder(ordered) {
+      ordered.forEach((s, i) => {
+        s.order = i;
+        s.key = 'step' + (i + 1);
+        s.name = 'step' + (i + 1);
+      });
+    }
+    function replaceStepsInDisplayOrder(ordered) {
+      renumberStepKeysInOrder(ordered);
+      steps = ordered;
+    }
+
     function renderTable() {
       const tbody = document.getElementById('flow-tbody');
       tbody.innerHTML = '';
       steps
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .slice()
+        .sort(compareFlowSteps)
         .forEach((step, index) => {
           const tr = document.createElement('tr');
           tr.dataset.index = index;
@@ -116,8 +187,32 @@
               return `<option value="${value}"${selected}>${label}</option>`;
             }).join('');
             targetCell = `<select class="flow-input" data-field="target-select">${opts}</select>`;
+          } else if (step.type === 'gptfeedback') {
+            const cur = step.customPath || '';
+            const prompt = step.gptPrompt != null && step.gptPrompt !== undefined ? String(step.gptPrompt) : '';
+            const hasPrompt = String(prompt).trim().length > 0;
+            const pickOpts = [
+              '<option value="">' + escHtml('（從 gptfeedback 清單帶入，或手填下方）') + '</option>',
+              ...gptfeedbackPageOptions.map(p => {
+                const sel = p.path === cur ? ' selected' : '';
+                return '<option value="' + escAttr(p.path) + '"' + sel + '>' + escHtml(p.name || p.path) + '</option>';
+              })
+            ].join('');
+            targetCell = '<div class="flow-gpt-cell"><select class="flow-input" data-field="target-gpt-pick">' + pickOpts + '</select>' +
+              '<input class="flow-input" data-field="target-input" value="' + escAttr(cur) + '" placeholder="/setting/gptfeedback/vr-uid-gpt.html" style="margin-top:0.35rem;">' +
+              '<details class="flow-gpt-prompt-box"' + (hasPrompt ? ' open' : '') + '><summary>編輯 GPT 提示詞</summary>' +
+              '<textarea class="flow-input" data-field="gpt-prompt" rows="4" style="margin-top:0.35rem;resize:vertical;min-width:100%;box-sizing:border-box;">' + escHtml(prompt) + '</textarea></details></div>';
           } else {
-            targetCell = `<input class="flow-input" value="${step.customPath || ''}" data-field="target-input" placeholder="/custom/intro.html">`;
+            const cur = step.customPath || '';
+            const pickOpts = [
+              '<option value="">' + escHtml('（從清單選取以帶入路徑，或手動改下方）') + '</option>',
+              ...customPageOptions.map(p => {
+                const sel = p.path === cur ? ' selected' : '';
+                return '<option value="' + escAttr(p.path) + '"' + sel + '>' + escHtml(p.name || p.path) + '</option>';
+              })
+            ].join('');
+            targetCell = '<div class="flow-custom-cell"><select class="flow-input" data-field="target-custom-pick">' + pickOpts + '</select>' +
+              '<input class="flow-input" data-field="target-input" value="' + escAttr(cur) + '" placeholder="/setting/custom/intro.html" style="margin-top:0.35rem;"></div>';
           }
           tr.innerHTML = `
             <td>${index + 1}</td>
@@ -128,6 +223,7 @@
                 <option value="survey"${step.type === 'survey' ? ' selected' : ''}>survey</option>
                 <option value="instruction"${step.type === 'instruction' ? ' selected' : ''}>instruction</option>
                 <option value="custom"${step.type === 'custom' ? ' selected' : ''}>custom</option>
+                <option value="gptfeedback"${step.type === 'gptfeedback' ? ' selected' : ''}>gptfeedback</option>
               </select>
             </td>
             <td>${targetCell}</td>
@@ -149,15 +245,27 @@
         const type = tr.querySelector('select[data-field="type"]').value;
         const base = { key, name, type, order: idx, flowKey: 'default', active: true };
         if (type === 'custom') {
-          const targetInput = tr.querySelector('input[data-field="target-input"]');
+          const wrap = tr.querySelector('.flow-custom-cell');
+          const targetInput = wrap ? wrap.querySelector('input[data-field="target-input"]') : tr.querySelector('input[data-field="target-input"]');
           const target = targetInput ? targetInput.value.trim() : '';
           base.customPath = target || undefined;
+          base.refKey = undefined;
+          base.gptPrompt = undefined;
+        } else if (type === 'gptfeedback') {
+          const wrap = tr.querySelector('.flow-gpt-cell');
+          const targetInput = wrap && wrap.querySelector('input[data-field="target-input"]');
+          const ta = wrap && wrap.querySelector('textarea[data-field="gpt-prompt"]');
+          const p = targetInput ? targetInput.value.trim() : '';
+          base.customPath = p || undefined;
+          const gp = ta ? ta.value : '';
+          base.gptPrompt = gp.length ? gp : undefined;
           base.refKey = undefined;
         } else {
           const sel = tr.querySelector('select[data-field="target-select"]');
           const target = sel ? sel.value.trim() : '';
           base.refKey = target || undefined;
           base.customPath = undefined;
+          base.gptPrompt = undefined;
         }
         return base;
       });
@@ -165,15 +273,19 @@
 
     document.getElementById('btn-add-step').addEventListener('click', () => {
       steps.push({
-        key: 'step' + (steps.length + 1),
-        name: '新步驟 ' + (steps.length + 1),
+        key: 'x',
+        name: 'x',
         type: 'instruction',
         refKey: '',
         customPath: '',
-        order: steps.length,
+        gptPrompt: '',
+        order: 1e6,
         flowKey: 'default',
         active: true
       });
+      const o = getStepsSorted();
+      renumberStepKeysInOrder(o);
+      steps = o;
       renderTable();
     });
 
@@ -184,32 +296,81 @@
       const tr = btn.closest('tr');
       const index = parseInt(tr.dataset.index, 10);
       if (Number.isNaN(index)) return;
+      const ordered = getStepsSorted();
       if (action === 'delete') {
-        steps.splice(index, 1);
+        ordered.splice(index, 1);
+        replaceStepsInDisplayOrder(ordered);
       } else if (action === 'up' && index > 0) {
-        [steps[index - 1], steps[index]] = [steps[index], steps[index - 1]];
-      } else if (action === 'down' && index < steps.length - 1) {
-        [steps[index + 1], steps[index]] = [steps[index], steps[index + 1]];
+        const tmp = ordered[index - 1];
+        ordered[index - 1] = ordered[index];
+        ordered[index] = tmp;
+        replaceStepsInDisplayOrder(ordered);
+      } else if (action === 'down' && index < ordered.length - 1) {
+        const tmp = ordered[index + 1];
+        ordered[index + 1] = ordered[index];
+        ordered[index] = tmp;
+        replaceStepsInDisplayOrder(ordered);
+      } else {
+        return;
       }
       renderTable();
     });
 
-    // 當類型改變時，重新渲染該列以切換對應下拉選單/輸入框
-    document.getElementById('flow-tbody').addEventListener('change', (e) => {
+    // 類型改變；custom / gptfeedback 自訂頁清單變更時帶入下方路徑
+    document.getElementById('flow-tbody').addEventListener('change', async (e) => {
+      const pick = e.target.closest('select[data-field="target-custom-pick"]');
+      if (pick && pick.value) {
+        const cell = pick.closest('.flow-custom-cell');
+        const inp = cell && cell.querySelector('input[data-field="target-input"]');
+        if (inp) inp.value = pick.value;
+        return;
+      }
+      const gptPick = e.target.closest('select[data-field="target-gpt-pick"]');
+      if (gptPick && gptPick.value) {
+        const cell = gptPick.closest('.flow-gpt-cell');
+        const inp = cell && cell.querySelector('input[data-field="target-input"]');
+        if (inp) inp.value = gptPick.value;
+        return;
+      }
       const sel = e.target.closest('select[data-field="type"]');
       if (!sel) return;
-      const tr = sel.closest('tr');
-      const index = parseInt(tr.dataset.index, 10);
-      if (Number.isNaN(index)) return;
-      steps[index].type = sel.value;
+      syncFromDom();
+      if (sel.value === 'custom') {
+        await loadCustomPages();
+      } else if (sel.value === 'gptfeedback') {
+        await loadGptfeedbackPages();
+      }
+      setPageListsHint();
       renderTable();
     });
+
+    function validateBeforeSave() {
+      for (let i = 0; i < steps.length; i++) {
+        const s = steps[i];
+        const k = (s.key || '').trim();
+        if (k.length > 120) {
+          return '第 ' + (i + 1) + ' 步的「步驟 key」過長，請用簡短名稱（如 step3），不要貼整段提示詞。';
+        }
+        if (s.type === 'gptfeedback' && s.customPath) {
+          const p = String(s.customPath).trim();
+          if (p && p.indexOf('/') !== 0) {
+            return '第 ' + (i + 1) + ' 步 (gptfeedback)：路徑欄須以 / 開頭（如 /setting/gptfeedback/vr-uid-gpt.html）。送 GPT 的內文請寫在「編輯 GPT 提示詞」，不要貼在路徑欄。';
+          }
+        }
+      }
+      return '';
+    }
 
     document.getElementById('btn-save-flow').addEventListener('click', async () => {
       syncFromDom();
       const invalid = steps.find(s => !s.key || !s.name || !s.type);
       if (invalid) {
         showMsg('每個步驟需要填寫「步驟 key、名稱與類型」。', true);
+        return;
+      }
+      const vErr = validateBeforeSave();
+      if (vErr) {
+        showMsg(vErr, true);
         return;
       }
       try {
@@ -230,11 +391,30 @@
       try {
         const r = await fetch(apiBase + '/flow?flowKey=default');
         const d = await r.json();
-        steps = d.success && Array.isArray(d.data) ? d.data : [];
+        const raw = d.success && Array.isArray(d.data) ? d.data : [];
+        let fixed = false;
+        steps = raw.map((s) => {
+          if (s.type === 'gptfeedback' && s.customPath) {
+            const cp = String(s.customPath).trim();
+            if (cp && cp.indexOf('/') !== 0) {
+              fixed = true;
+            }
+          }
+          return repairGptfeedbackMistake(s);
+        });
+        if (fixed) {
+          showMsg(
+            '已偵測 gpt 步驟的「路徑」欄被存成提示詞內文（常見誤操作）。已自動改為專用 HTML 路徑，並把該段文字移入「編輯 GPT 提示詞」。請按「儲存流程」寫入資料庫，之後實驗網址才會是 <code>/experiment/step3</code> 這類正確路徑。',
+            false
+          );
+        }
       } catch (e) {
         steps = [];
         console.error(e);
       }
+      const o = getStepsSorted();
+      renumberStepKeysInOrder(o);
+      steps = o;
       renderTable();
     }
 
@@ -257,8 +437,102 @@
       }
     }
 
+    function setPageListsHint() {
+      const el = document.getElementById('custom-detect-hint');
+      if (!el) return;
+      const hasErr = !!(customPageListError || gptPageListError);
+      el.style.color = hasErr ? '#b91c1c' : '';
+      if (hasErr) {
+        const parts = [];
+        if (customPageListError) parts.push('【自訂 ' + 'public/custom' + '】' + customPageListError);
+        if (gptPageListError) parts.push('【GPT ' + 'public/gptfeedback' + '】' + gptPageListError);
+        el.textContent = parts.join(' ');
+        return;
+      }
+      const a = !customPageOptions.length
+        ? '自訂（public/custom）：未掃到 .html，可手動填路徑。'
+        : '自訂（public/custom）：' + customPageOptions.length + ' 個。';
+      const b = !gptfeedbackPageOptions.length
+        ? 'GPT（public/gptfeedback）：未掃到 .html。'
+        : 'GPT（public/gptfeedback）：' + gptfeedbackPageOptions.length + ' 個。';
+      el.textContent = a + ' ' + b;
+    }
+
+    async function loadCustomPages() {
+      customPageListError = '';
+      try {
+        const r = await fetch(apiBase + '/custom-pages', { cache: 'no-store' });
+        if (!r.ok) {
+          customPageOptions = [];
+          customPageListError = '自訂頁清單讀取失敗（HTTP ' + r.status + '）。多數常見原因：專案已加入 /api/experiments/custom-pages 但 Node 未重啟。請**停止並重啟**後端，再按「重新偵測自訂頁」或重新整理本頁。';
+          return;
+        }
+        let d;
+        try {
+          d = await r.json();
+        } catch {
+          customPageOptions = [];
+          customPageListError = '自訂頁 API 內容不是有效 JSON。請重啟後端或檢查代理設定。';
+          return;
+        }
+        if (d.success && Array.isArray(d.data)) {
+          customPageOptions = d.data;
+        } else {
+          customPageOptions = [];
+          customPageListError = '自訂頁清單格式異常。';
+        }
+      } catch (e) {
+        console.error(e);
+        customPageOptions = [];
+        customPageListError = '無法連線取得自訂頁清單（' + (e && e.message ? e.message : '不明錯誤') + '）。';
+      }
+    }
+
+    async function loadGptfeedbackPages() {
+      gptPageListError = '';
+      try {
+        const r = await fetch(apiBase + '/gptfeedback-pages', { cache: 'no-store' });
+        if (!r.ok) {
+          gptfeedbackPageOptions = [];
+          gptPageListError = '清單讀取失敗（HTTP ' + r.status + '）。若剛加 API，請**重啟** Node 後再試。';
+          return;
+        }
+        let d;
+        try {
+          d = await r.json();
+        } catch {
+          gptfeedbackPageOptions = [];
+          gptPageListError = '回傳內容不是有效 JSON。';
+          return;
+        }
+        if (d.success && Array.isArray(d.data)) {
+          gptfeedbackPageOptions = d.data;
+        } else {
+          gptfeedbackPageOptions = [];
+          gptPageListError = '清單格式異常。';
+        }
+      } catch (e) {
+        console.error(e);
+        gptfeedbackPageOptions = [];
+        gptPageListError = '連線失敗：' + (e && e.message ? e.message : '不明錯誤') + '。';
+      }
+    }
+
+    document.getElementById('btn-refresh-custom').addEventListener('click', async () => {
+      syncFromDom();
+      const hint = document.getElementById('custom-detect-hint');
+      if (hint) hint.textContent = '掃描中…';
+      await loadCustomPages();
+      await loadGptfeedbackPages();
+      setPageListsHint();
+      renderTable();
+    });
+
     document.addEventListener('DOMContentLoaded', async () => {
       await loadOptions();
+      await loadCustomPages();
+      await loadGptfeedbackPages();
+      setPageListsHint();
       await loadFlow();
     });
   </script>

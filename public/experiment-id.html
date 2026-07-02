@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>實驗編號設定 - 師資生情緒管理訓練系統</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="header">
+    <h1>實驗編號設定</h1>
+    <p class="subtitle">設定本次資料蒐集所屬研究編號（experimentCode）</p>
+  </header>
+  <nav class="nav">
+    <a href="/setting">首頁</a>
+    <a href="/setting/editing">編輯功能</a>
+    <a href="/setting/recording">紀錄功能</a>
+    <a href="/setting/feedback">操作與反饋</a>
+    <a href="/setting/survey-editor">量表編輯（Survey.js）</a>
+    <a href="/setting/instruction">指導語設定</a>
+    <a href="/setting/experiment-flow">實驗流程編輯</a>
+    <a href="/setting/experiment-id" class="nav-link active">實驗編號設定</a>
+  </nav>
+
+  <main class="main">
+    <section class="card">
+      <h2>設定 experimentCode</h2>
+      <p class="muted">建議使用英文與數字，例如：<code>study-001</code>、<code>exp-a1</code>。</p>
+      <div class="form-row">
+        <div class="form-group" style="max-width: 420px;">
+          <label for="experiment-code">實驗編號</label>
+          <input id="experiment-code" type="text" placeholder="study-001">
+        </div>
+      </div>
+      <button type="button" id="btn-save">儲存</button>
+      <span id="save-msg" style="margin-left: 0.75rem;"></span>
+    </section>
+  </main>
+
+  <script>
+    function showMsg(text, isErr) {
+      const el = document.getElementById('save-msg');
+      el.innerHTML = text ? '<span class="msg ' + (isErr ? 'error' : 'success') + '">' + text + '</span>' : '';
+    }
+
+    async function loadConfig() {
+      const r = await fetch('/api/experiments/config');
+      const d = await r.json();
+      if (!d.success || !d.data) throw new Error(d.message || '讀取設定失敗');
+      const code = String(d.data.experimentCode || '').trim();
+      document.getElementById('experiment-code').value = code;
+      sessionStorage.setItem('experimentCode', code || 'study-001');
+    }
+
+    async function saveConfig() {
+      const code = document.getElementById('experiment-code').value.trim();
+      if (!code) {
+        showMsg('實驗編號不可為空', true);
+        return;
+      }
+      const r = await fetch('/api/experiments/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ experimentCode: code })
+      });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.message || '儲存失敗');
+      sessionStorage.setItem('experimentCode', code);
+      showMsg('已儲存。', false);
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        await loadConfig();
+      } catch (e) {
+        showMsg('讀取失敗：' + e.message, true);
+      }
+      document.getElementById('btn-save').addEventListener('click', async () => {
+        try {
+          await saveConfig();
+        } catch (e) {
+          showMsg('儲存失敗：' + e.message, true);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

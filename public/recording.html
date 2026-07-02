@@ -19,9 +19,18 @@
     <a href="/setting/survey-editor">量表編輯（Survey.js）</a>
     <a href="/setting/instruction">指導語設定</a>
     <a href="/setting/experiment-flow">實驗流程編輯</a>
+    <a href="/setting/experiment-id">實驗編號設定</a>
   </nav>
 
   <main class="main">
+    <section class="card">
+      <h2>VR 教室歷程（Unity 實機上傳）</h2>
+      <p>與上方「統一寫入」<strong>不同</strong>：VR 程式用 <code>POST /auth/api/vr_classsroom/Updatas_*</code> 寫入 Mongo 的 <code>event_lookingdatas</code>、<code>lookingdatas</code> 等（舊版相容 API）。請先確認 <code>npm start</code> 有顯示「MongoDB 已連線」，且 Unity 內 IP/埠與本後端一致（本機 <code>127.0.0.1:4000</code>；頭戴顯示器請改為<strong>電腦區網 IP</strong>同埠，並開放防火牆）。若設了 <code>VR_API_KEY</code>，須與 Unity 送出的 <code>apikey</code> 相同。</p>
+      <p class="subtitle" style="margin-top:0.5rem;">除錯：在專案 <code>.env</code> 加 <code>VR_LOG=1</code> 可在終端機看到每次寫入的 uid / mission_id。</p>
+      <button type="button" id="btn-vr-summary">重新整理 VR 各表筆數</button>
+      <div id="vr-summary" class="pre" style="margin-top:0.75rem;max-height:320px;overflow:auto;background:#f8fafc;padding:0.75rem;border-radius:4px;font-size:0.85rem;"></div>
+    </section>
+
     <section class="card">
       <h2>統一寫入介面</h2>
       <p>POST /api/recording/write — body: <code>{ "type": "physiological|emotion_feedback|scale_response|decision|process|personal", "payload": { ... } }</code>，payload 會自動加上 timestamp。</p>
@@ -85,6 +94,18 @@
     function showMsg(el, text, isErr) {
       el.innerHTML = '<span class="msg ' + (isErr ? 'error' : 'success') + '">' + text + '</span>';
     }
+
+    document.getElementById('btn-vr-summary').addEventListener('click', async () => {
+      const el = document.getElementById('vr-summary');
+      el.textContent = '讀取中…';
+      try {
+        const r = await fetch(base + '/api/vr-classroom/summary');
+        const d = await r.json();
+        el.textContent = JSON.stringify(d, null, 2);
+      } catch (e) {
+        el.textContent = '錯誤：' + e.message;
+      }
+    });
 
     document.getElementById('btn-write').addEventListener('click', async () => {
       let payload = {};

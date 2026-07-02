@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>即時情緒辨識測試 - 師資生情緒管理訓練系統</title>
+  <link rel="stylesheet" href="/setting/styles.css">
+  <link rel="stylesheet" href="/setting/emotion-test.css">
+</head>
+<body class="emotion-page">
+  <header class="header">
+    <h1>即時情緒辨識測試</h1>
+    <p class="subtitle">Azure 即時語音辨識 · openSMILE / MERaLiON 聲音情緒 · Azure 文字情緒</p>
+    <div id="status-bar" class="status-bar"></div>
+  </header>
+  <nav class="nav">
+    <a href="/setting">首頁</a>
+    <a href="/emotion-test" class="nav-link active">即時情緒辨識</a>
+  </nav>
+
+  <main class="main-wide">
+    <section class="card">
+      <div class="controls">
+        <div class="form-group" style="margin-bottom:0;min-width:220px;">
+          <label for="micSelect">麥克風</label>
+          <select id="micSelect"></select>
+        </div>
+        <button type="button" id="btnStart" class="primary">開始即時辨識</button>
+        <button type="button" id="btnStop" disabled>停止</button>
+        <span id="liveIndicator" class="indicator hidden">● 收音中</span>
+      </div>
+      <p class="muted">開啟麥克風後持續收音；每次停止說話約 1 秒，會自動把那一句同時送去語音辨識、聲音情緒辨識(openSMILE/MERaLiON)，辨識出文字後再接著送文字情緒辨識(Azure)。</p>
+    </section>
+
+    <section class="transcript-card">
+      <p id="partialLine" class="partial-line"></p>
+      <p id="finalTranscript" class="transcript">按「開始即時辨識」後開始說話…</p>
+    </section>
+
+    <section id="emotionResult">
+      <h2>情緒分析結果</h2>
+      <div id="emotionCard" class="emotion-hero">
+        <p class="score-hint" id="emotionPlaceholder">說完一句話後，這裡會顯示分析結果。</p>
+      </div>
+      <div id="opensmileStrip" class="opensmile-strip hidden"></div>
+      <details class="feature-details hidden" id="opensmileDetails">
+        <summary>openSMILE 聲學特徵明細</summary>
+        <div id="featureGrid" class="feature-grid"></div>
+      </details>
+      <div id="meralionPanel" class="meralion-panel hidden"></div>
+      <div id="sentimentPanel" class="sentiment-panel hidden"></div>
+      <details class="feature-details hidden" id="sentimentDetails">
+        <summary>Azure 意見挖掘明細</summary>
+        <div id="sentimentOpinions" class="sentiment-opinions"></div>
+      </details>
+    </section>
+
+    <div id="emotionHistory" class="emotion-history hidden"></div>
+  </main>
+
+  <script src="/setting/emotion-test.js" type="module"></script>
+</body>
+</html>
