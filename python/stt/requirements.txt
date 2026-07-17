@@ -1,0 +1,9 @@
+# Python 3.9-3.12 (64-bit) recommended
+faster-whisper>=1.0.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.0
+# GPU (CUDA) 執行需要，裝這兩個 pip 套件即可，不用另外裝整套 CUDA Toolkit
+nvidia-cublas-cu12
+nvidia-cudnn-cu12

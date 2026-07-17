@@ -8,7 +8,9 @@
     "dev": "node server.js",
     "vr:test-post": "node scripts/post-vr-test-rows.js",
     "emotion-install": "py -3.12 -m pip install -r python/emotion/requirements.txt",
-    "emotion-api": "py -3.12 -m uvicorn emotion_api:app --host 127.0.0.1 --port 8000 --app-dir python/emotion"
+    "emotion-api": "py -3.12 -m uvicorn emotion_api:app --host 127.0.0.1 --port 8000 --app-dir python/emotion",
+    "stt-install": "py -3.12 -m pip install -r python/stt/requirements.txt",
+    "stt-api": "py -3.12 -m uvicorn stt_api:app --host 127.0.0.1 --port 8001 --app-dir python/stt"
   },
   "engines": {
     "node": ">=14.0.0"

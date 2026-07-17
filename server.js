@@ -36,6 +36,8 @@ app.use('/api/vr-classroom', require('./routes/vrClassroomSummary'));
 app.use('/api/gpt-vr', require('./routes/gptVr'));
 // VR 音檔情緒辨識：Azure 語音辨識、openSMILE 聲音情緒、Azure 文字情緒
 app.use('/api/vr-emotion', require('./routes/vrEmotion'));
+// 本地語音辨識（faster-whisper），取代語音對話原本每輪都要上傳到 OpenAI Whisper 雲端的做法
+app.use('/api/stt', require('./routes/stt'));
 // VR 即時語音辨識（WebSocket）：ws://<host>:<port>/ws/vr-emotion/stt
 require('./routes/vrEmotionStream').attach(server);
 
