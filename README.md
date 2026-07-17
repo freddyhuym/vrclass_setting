@@ -4,19 +4,46 @@
 
 ## 需求
 
-- Node.js 14+
-- MongoDB 3.4（預設 `localhost:27017`）
+- **Node.js 18+**（後端用到內建 `fetch`，18 以下會壞掉）：到 [nodejs.org](https://nodejs.org/) 下載 LTS 版安裝，或用 `nvm install 18`
+- **Python 3.9–3.12（64-bit）**：只有要用「聲音情緒辨識」功能才需要，到 [python.org](https://www.python.org/downloads/) 安裝，Windows 建議裝 3.12
+- MongoDB 3.4+（預設 `localhost:27017`）
 
-## 安裝與啟動
+## 安裝步驟
+
+### 1. 裝 Node.js 依賴、設定環境變數
 
 ```bash
 npm install
+copy .env.example .env
+```
+
+`.env` 裡把 `AZURE_SPEECH_KEY`、`AZURE_LANGUAGE_KEY` 等金鑰填好，`MONGODB_URI`/`PORT` 沒有特殊需求可以不用改。
+
+### 2.（選用）裝聲音情緒辨識用的 Python 依賴
+
+只有要測 openSMILE / MERaLiON 聲音情緒辨識才需要這步，第一次執行才要做，之後不用重複：
+
+```bash
+npm run emotion-install
+```
+
+首次啟動會另外從 Hugging Face 下載 MERaLiON 模型(約 800MB)，需要一點時間。
+
+### 3. 啟動
+
+需要**開兩個終端機視窗**：
+
+```bash
+# 終端機 1：聲音情緒辨識服務（只有要用這功能才需要開）
+npm run emotion-api
+
+# 終端機 2：主要後端
 npm start
 ```
 
-瀏覽器開啟：http://localhost:3000
-
-環境變數（可選）：複製 `.env.example` 為 `.env`，可修改 `PORT`、`MONGODB_URI`。
+瀏覽器開啟：
+- 主站：http://localhost:4000
+- 情緒辨識測試頁：http://localhost:4000/emotion-test
 
 ## 模組與 API
 

@@ -124,6 +124,20 @@
       return list[0]?.key || null;
     }
 
+    /** 若網址帶了合法的 next（例如從 /experiment/step2 被導回來設 UID），設定完要回到原本要去的那一步 */
+    function getNextTarget() {
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get('next') || '';
+      return /^\/experiment\/[^/?#]+$/.test(next) ? next : '';
+    }
+
+    async function resolveTargetPath() {
+      const nextTarget = getNextTarget();
+      if (nextTarget) return nextTarget;
+      const firstKey = await getFirstStepKey();
+      return firstKey ? '/experiment/' + encodeURIComponent(firstKey) : '';
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       await ensureExperimentCode();
       const input = document.getElementById('subject-id');
@@ -147,7 +161,7 @@
         useId = fromVr;
       }
 
-      async function goToFirstStepWithKey(subjectId, firstKey) {
+      async function goToStep(subjectId, targetPath) {
         await postWebEvent({
           userId: subjectId,
           sessionId,
@@ -160,16 +174,16 @@
           afterValue: subjectId,
           clientTs: new Date().toISOString()
         });
-        window.location.replace('/experiment/' + encodeURIComponent(firstKey));
+        window.location.replace(targetPath);
       }
 
       async function goToFirstStep(subjectId) {
-        const firstKey = await getFirstStepKey();
-        if (!firstKey) {
+        const targetPath = await resolveTargetPath();
+        if (!targetPath) {
           alert('尚未設定實驗流程。');
           return;
         }
-        await goToFirstStepWithKey(subjectId, firstKey);
+        await goToStep(subjectId, targetPath);
       }
 
       if (!askEntry) {
@@ -184,13 +198,13 @@
         if (titleEl) {
           titleEl.textContent = '進入實驗…';
         }
-        const firstKey = await getFirstStepKey();
-        if (!firstKey) {
+        const targetPath = await resolveTargetPath();
+        if (!targetPath) {
           alert('尚未設定實驗流程。');
           return;
         }
         const subjectForEvent = useId || 'anonymous';
-        await goToFirstStepWithKey(subjectForEvent, firstKey);
+        await goToStep(subjectForEvent, targetPath);
         return;
       }
 

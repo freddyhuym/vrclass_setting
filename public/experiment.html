@@ -335,8 +335,14 @@
     let stepContentName = '';
     let experimentCode = '';
 
+    /** 讀取受試者編號：sessionStorage 沒有時退回 VrSessionUid（localStorage/Cookie），並補寫回 sessionStorage */
     function getUserId() {
-      return sessionStorage.getItem('experimentSubjectId') || 'anonymous';
+      let uid = (sessionStorage.getItem('experimentSubjectId') || '').trim();
+      if (!uid && window.VrSessionUid) {
+        uid = (VrSessionUid.get() || '').trim();
+        if (uid) sessionStorage.setItem('experimentSubjectId', uid);
+      }
+      return uid || 'anonymous';
     }
 
     function getSessionId() {
@@ -1095,6 +1101,10 @@
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
+      if (getUserId() === 'anonymous') {
+        window.location.replace('/experiment?ask=1&next=' + encodeURIComponent(window.location.pathname));
+        return;
+      }
       setupDebugHotkey();
       updateDebugNav();
       await ensureExperimentCode();

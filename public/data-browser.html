@@ -140,7 +140,6 @@
       border-radius: 4px;
       padding: 0.35rem 0.6rem;
     }
-    .col-change { min-width: 200px; }
   </style>
 </head>
 <body>
@@ -208,7 +207,8 @@
       { type: 'scale_response', collection: 'scaleresponses' },
       { type: 'emotion_feedback', collection: 'emotionfeedbacks' },
       { type: 'decision', collection: 'decisionrecords' },
-      { type: 'physiological', collection: 'physiologicals' }
+      { type: 'physiological', collection: 'physiologicals' },
+      { type: 'vr_conversation', collection: 'vrconversations' }
     ];
     const VR_COLLECTIONS = [
       'event_lookingdatas',
@@ -229,18 +229,19 @@
     let rawRows = [];
     let page = 1;
 
-    const THEAD_LAB = `
+    /** 第 2 欄標題依 collection 而異：survey_final_answer 顯示「問卷頁面」，其餘（含 vr_conversation）顯示「關卡名稱」 */
+    function levelColumnLabel() {
+      return selectedType === 'survey_final_answer' ? '問卷頁面' : '關卡名稱';
+    }
+    function theadLab() {
+      return `
         <tr>
-          <th style="width: 8%;">受試者編號(UID)</th>
-          <th style="width: 8%;">實驗編號</th>
-          <th style="width: 9%;">步驟名稱</th>
-          <th style="width: 11%;">量表/指導語名稱</th>
-          <th style="width: 7%;">Event</th>
-          <th style="width: 8%;">Event 中文</th>
-          <th style="width: 14%;">Main Content</th>
-          <th class="col-change" style="width: 22%;">變更內容</th>
-          <th style="width: 12%;">Created At</th>
+          <th style="width: 14%;">受試者編號(UID)</th>
+          <th style="width: 14%;">${levelColumnLabel()}</th>
+          <th style="width: 58%;">Main Content</th>
+          <th style="width: 14%;">Created At</th>
         </tr>`;
+    }
     const THEAD_VR = `
         <tr>
           <th style="width: 9%;">_id</th>
@@ -287,7 +288,7 @@
           dataMode = 'lab';
           selectedType = card.dataset.type;
           page = 1;
-          document.getElementById('thead').innerHTML = THEAD_LAB;
+          document.getElementById('thead').innerHTML = theadLab();
           loadRows();
         });
       });
@@ -340,27 +341,28 @@
       }
     }
 
-    function formatChangeValue(v) {
-      if (v === undefined || v === null) return '(空)';
-      if (typeof v === 'string' && v === '') return '(空)';
+    function formatAnswerValue(v) {
+      if (v === undefined || v === null || v === '') return '(空)';
       if (Array.isArray(v)) return v.length ? v.join('、') : '(空)';
       if (typeof v === 'object') return JSON.stringify(v);
       return String(v);
     }
 
-    /** 獨立欄位「變更內容」：僅 change 事件顯示 before → after */
-    function formatChangeColumn(row) {
-      const ev = row.eventName || row.action || '';
-      if (ev !== 'change') return '';
-      if (!('beforeValue' in row) && !('afterValue' in row)) return '';
-      const before = formatChangeValue(row.beforeValue);
-      const after = formatChangeValue(row.afterValue);
-      return '「' + before + '」→「' + after + '」';
-    }
-
-    /** Main Content：change 只顯示欄位／題目名稱，具體變更在「變更內容」欄 */
+    /** Main Content：change 事件僅顯示欄位／題目名稱 */
     function formatMainContent(row) {
       const ev = row.eventName || row.action || '';
+      if (row.type === 'vr_conversation' || row.sttText != null || row.gptResponseText != null) {
+        const parts = [];
+        if (row.voiceArousal != null) parts.push('喚醒度' + Number(row.voiceArousal).toFixed(2));
+        if (row.textSentiment) parts.push('情緒:' + row.textSentiment);
+        const tag = parts.length ? '[' + parts.join('｜') + '] ' : '';
+        return tag + '使用者:「' + (row.sttText || '') + '」→ AI:「' + (row.gptResponseText || '') + '」';
+      }
+      if (row.type === 'survey_final_answer' && Array.isArray(row.answers)) {
+        return row.answers
+          .map((a) => (a.questionTitle || a.questionName || '?') + ': ' + formatAnswerValue(a.answer))
+          .join('、');
+      }
       if (ev === 'change') {
         return row.questionTitle || row.targetText || '-';
       }
@@ -375,29 +377,16 @@
       return JSON.stringify(row).slice(0, 120);
     }
 
-    function getPageName(row) {
-      return row.stepKey || row.pageName || row.pagePath || '-';
-    }
-
-    function getEvent(row) {
-      return row.eventName || row.action || row.type || '-';
-    }
-
-    function getContentName(row) {
-      return row.contentName || row.surveyName || '-';
-    }
-
-    function eventZh(eventName) {
-      const map = {
-        click: '點擊',
-        input: '輸入',
-        change: '變更',
-        submit: '送出',
-        page_view: '頁面瀏覽',
-        focus: '聚焦',
-        blur: '離開欄位'
-      };
-      return map[eventName] || '其他';
+    /**
+     * 第 2 欄內容，依 collection 而異：
+     * - survey_final_answer：顯示問卷名稱（像量表名稱的字串，例如「個人資料」），沒有才退回步驟 key/頁面路徑
+     * - 其餘（含 vr_conversation）：關卡名稱，VRCLASS 選完關卡後帶入的 levelName，舊資料無此欄位時退回顯示研究/實驗編號
+     */
+    function getLevelName(row) {
+      if (row.type === 'survey_final_answer') {
+        return row.surveyName || row.stepKey || row.pageName || row.pagePath || '—';
+      }
+      return row.levelName || row.experimentCode || '—';
     }
 
     function filteredSortedRows() {
@@ -438,7 +427,7 @@
     function csvColumnsForRows(rows) {
       const preferred = dataMode === 'vr'
         ? ['_id', 'uid', 'mission_id', 'event_id', 'function_name', 'createdAt', 'updatedAt', 'eye_tracking', 'pupil_radius']
-        : ['_id', 'userId', 'experimentCode', 'sessionId', 'stepKey', 'pageName', 'pagePath', 'contentName', 'surveyName', 'eventName', 'action', 'questionTitle', 'targetText', 'beforeValue', 'afterValue', 'timestamp', 'createdAt', 'updatedAt'];
+        : ['_id', 'userId', 'levelName', 'experimentCode', 'sessionId', 'stepKey', 'pageName', 'pagePath', 'contentName', 'surveyName', 'studentName', 'eventName', 'action', 'questionTitle', 'targetText', 'beforeValue', 'afterValue', 'timestamp', 'createdAt', 'updatedAt'];
       const keys = new Set();
       rows.forEach((row) => Object.keys(row || {}).forEach((key) => keys.add(key)));
       const columns = preferred.filter((key) => keys.has(key));
@@ -513,17 +502,11 @@
         document.getElementById('summary').textContent = `${rows.length} ${selectedVr} 筆（可關鍵字篩選）`;
       } else {
         document.getElementById('rows').innerHTML = current.map(r => {
-          const changeText = formatChangeColumn(r);
           return `
         <tr>
           <td>${esc(r.userId || '-')}</td>
-          <td>${esc(r.experimentCode || '—')}</td>
-          <td>${esc(getPageName(r))}</td>
-          <td>${esc(getContentName(r))}</td>
-          <td>${esc(getEvent(r))}</td>
-          <td>${esc(eventZh(getEvent(r)))}</td>
+          <td>${esc(getLevelName(r))}</td>
           <td>${esc(formatMainContent(r))}</td>
-          <td>${changeText ? esc(changeText) : '—'}</td>
           <td>${pickDate(r) ? esc(new Date(pickDate(r)).toLocaleString()) : ''}</td>
         </tr>
       `;
@@ -585,7 +568,7 @@
     document.getElementById('btnNext').addEventListener('click', () => { page += 1; renderTable(); });
 
     document.addEventListener('DOMContentLoaded', async () => {
-      document.getElementById('thead').innerHTML = THEAD_LAB;
+      document.getElementById('thead').innerHTML = theadLab();
       await loadAllCounts();
       await loadRows();
     });

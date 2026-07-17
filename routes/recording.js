@@ -8,7 +8,8 @@ const {
   Physiological,
   ProcessLog,
   WebEventLog,
-  SurveyFinalAnswer
+  SurveyFinalAnswer,
+  VrConversation
 } = require('../models/Record');
 
 function ensureTimestamp(body) {
@@ -167,6 +168,18 @@ router.post('/survey-final', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ========== VR語音對話紀錄（語音辨識文字/聲音喚醒度/文字情緒/GPT回覆，附時間戳記與uid）==========
+router.post('/vr-conversation', async (req, res, next) => {
+  try {
+    const body = ensureTimestamp(req.body);
+    if (!body.userId) {
+      return res.status(400).json({ success: false, message: '需要 userId (uid)' });
+    }
+    const doc = await VrConversation.create(body);
+    res.status(201).json({ success: true, data: doc });
+  } catch (e) { next(e); }
+});
+
 // ========== 各表筆數（供資料瀏覽頁顯示）==========
 router.get('/stats', async (req, res, next) => {
   try {
@@ -177,7 +190,8 @@ router.get('/stats', async (req, res, next) => {
       scale_response: await ScaleResponse.countDocuments(),
       emotion_feedback: await EmotionFeedback.countDocuments(),
       decision: await DecisionRecord.countDocuments(),
-      physiological: await Physiological.countDocuments()
+      physiological: await Physiological.countDocuments(),
+      vr_conversation: await VrConversation.countDocuments()
     };
     res.json({ success: true, counts });
   } catch (e) {
@@ -204,7 +218,8 @@ router.get('/records', async (req, res, next) => {
       physiological: Physiological,
       process: ProcessLog,
       web_event: WebEventLog,
-      survey_final_answer: SurveyFinalAnswer
+      survey_final_answer: SurveyFinalAnswer,
+      vr_conversation: VrConversation
     };
     const Model = type ? models[type] : null;
     if (Model) {
