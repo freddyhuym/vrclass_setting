@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>影片複盤</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="https://unpkg.com/vis-timeline@7.7.2/styles/vis-timeline-graph2d.min.css">
+  <script src="https://unpkg.com/vis-timeline@7.7.2/standalone/umd/vis-timeline-graph2d.min.js"></script>
+  <style>
+    html, body { margin: 0; background: #ffffff; }
+    .vr-wrap { max-width: 900px; margin: 0 auto; padding: 1rem 1rem 2rem; }
+    .vr-err {
+      color: var(--danger, #dc2626); background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.25rem; font-size: 0.95rem;
+    }
+    .vr-visualization { width: 100%; background: #cbd5e1; }
+    .vr-video-wrapper { width: 100%; display: flex; justify-content: center; margin-top: 0.75rem; }
+    .vr-video-wrapper video { width: 100%; max-width: 854px; background: #000; }
+  </style>
+</head>
+<body>
+  <div class="vr-wrap">
+    <div id="vr-err" class="vr-err" hidden></div>
+    <div id="vr-content" hidden>
+      <div id="vr-visualization-container" class="vr-visualization">
+        <div id="visualization"></div>
+      </div>
+      <div id="vr-video-container" class="vr-video-wrapper">
+        <video id="vr-video" controls>
+          Your browser does not support the video tag.
+        </video>
+        <audio id="vr-audio" class="hidden" style="display:none;"></audio>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/vrSessionUid.js"></script>
+  <script>
+    (function () {
+      var elErr = document.getElementById('vr-err');
+      var elContent = document.getElementById('vr-content');
+      var video = document.getElementById('vr-video');
+      var audio = document.getElementById('vr-audio');
+      var videoContainer = document.getElementById('vr-video-container');
+      var visContainer = document.getElementById('vr-visualization-container');
+
+      /** 與 experiment.html 外層 iframe 高度自動調整一致（set-uid.html / vr-uid-gpt.html 同一套） */
+      function sendHeight() {
+        if (!window.parent || window.parent === window) return;
+        var h = Math.max(
+          document.documentElement ? document.documentElement.scrollHeight : 0,
+          document.body ? document.body.scrollHeight : 0
+        );
+        try {
+          window.parent.postMessage({ type: 'vrclass-iframe-height', height: h }, window.location.origin);
+        } catch (e) { /* ignore */ }
+      }
+      function scheduleSendHeight() {
+        requestAnimationFrame(function () { requestAnimationFrame(sendHeight); });
+      }
+
+      /** 與 vr-uid-gpt.html 一致：優先 VrSessionUid，否則用受試者編號 sessionStorage */
+      function getUid() {
+        var a = (window.VrSessionUid && VrSessionUid.get() || '').trim();
+        if (a) return a;
+        try {
+          a = (sessionStorage.getItem('experimentSubjectId') || '').trim();
+        } catch (e) {
+          a = '';
+        }
+        if (a && window.VrSessionUid) {
+          VrSessionUid.set(a, { persistDevice: false });
+        }
+        return a;
+      }
+
+      /** 記錄文字一律使用中文，寫入 ProcessLog（POST /api/recording/process），會自動出現在 /api/feedback/multimodal-summary */
+      function logAction(eventType, payload) {
+        payload = payload || {};
+        var body = {
+          userId: uid,
+          action: eventType,
+          target: 'video-review',
+          details: Object.assign({ description: payload.description || '' }, payload)
+        };
+        fetch('/api/recording/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        }).catch(function (err) {
+          console.warn('[VideoReview] 記錄失敗:', err);
+        });
+      }
+
+      var uid = getUid();
+      if (!uid) {
+        elErr.hidden = false;
+        elErr.textContent = '未偵測到受試者編號（uid）。請先完成前面「請輸入受試者編號」步驟並按「下一步」。';
+        scheduleSendHeight();
+        return;
+      }
+
+      elContent.hidden = false;
+
+      video.innerHTML = '<source src="/setting/video-review-data/' + encodeURIComponent(uid) + '.mp4" type="video/mp4">Your browser does not support the video tag.';
+      audio.src = '/setting/video-review-data/sound' + encodeURIComponent(uid) + '.wav';
+
+      /** 下方影片時間軸：記錄拉動/點擊的起始與終止時間 */
+      var videoSeekStartTime = null;
+      /** 最後已知的播放位置（seeking 時瀏覽器可能已改 currentTime，用此當作真正的起始時間） */
+      var lastKnownCurrentTime = 0;
+      /** 若為 true 表示此次 seek 是點擊上方標籤造成，不記錄「影片時間軸操作」 */
+      var seekCausedByTimelineTagClick = false;
+      /** 上方時間軸（vis-timeline）範圍，用於判斷縮放或左右拖曳 */
+      var lastTimelineRange = null;
+      var timelineRangeDebounce = null;
+      /** 若 WAV 載入失敗則為 false，僅播放影片、略過所有 WAV 同步 */
+      var wavAvailable = true;
+      /** vis-timeline 實例（時間軸資料非同步載入完才會建立），供影片播放位置游標使用 */
+      var timelineInstance = null;
+
+      var BASE_TIME = new Date('2023-01-01T00:00:00');
+
+      function syncAudioToVideo() {
+        if (!wavAvailable || !audio || !video) return;
+        var t = video.currentTime;
+        if (Math.abs(audio.currentTime - t) > 0.05) {
+          audio.currentTime = t;
+        }
+        audio.playbackRate = video.playbackRate;
+        audio.volume = video.volume;
+        audio.muted = video.muted;
+      }
+
+      audio.addEventListener('error', function () {
+        wavAvailable = false;
+        console.warn('[VideoReview] WAV 無法載入，僅播放影片');
+      });
+
+      /** 把上方時間軸的「目前播放位置」游標移到跟影片目前播放秒數對齊的地方 */
+      function updateTimelinePositionMarker() {
+        if (!timelineInstance) return;
+        timelineInstance.setCustomTime(new Date(BASE_TIME.getTime() + video.currentTime * 1000), 'video-position');
+      }
+
+      fetch('/api/vr-classroom/review-timeline/' + encodeURIComponent(uid))
+        .then(function (r) { return r.json(); })
+        .then(function (result) {
+          var records = (result && result.data) || [];
+          var data = records.map(function (record, index) {
+            return {
+              id: index + 1,
+              content: record.content,
+              start: new Date(BASE_TIME.getTime() + record.mission_time_sec * 1000)
+            };
+          });
+
+          var container = document.getElementById('visualization');
+          var options = {
+            format: {
+              minorLabels: {
+                millisecond: '', second: 's.S秒', minute: '', hour: '',
+                weekday: '', day: '', week: '', month: '', year: ''
+              },
+              majorLabels: {
+                millisecond: '', second: 'mm分', minute: '', hour: '',
+                weekday: '', day: '', week: '', month: '', year: ''
+              }
+            }
+          };
+          var timeline = new vis.Timeline(container, data, options);
+          timelineInstance = timeline;
+
+          // 影片目前播放位置游標：跟著 video.currentTime 移動，讓時間軸跟影片畫面對得起來
+          timeline.addCustomTime(BASE_TIME, 'video-position');
+          timeline.setCustomTimeTitle('目前播放位置', 'video-position');
+          updateTimelinePositionMarker();
+
+          // 點擊上方時間軸標籤：只記錄標籤名稱與標籤在影片軸上的時間點，不記錄影片拉動；影片與 WAV 同步跳轉
+          timeline.on('select', function (properties) {
+            var itemId = properties.items[0];
+            if (itemId == null) return;
+            var item = data.filter(function (d) { return d.id === itemId; })[0];
+            var tagName = (item && item.content) || '';
+            var timeSec = item ? (item.start.getTime() - BASE_TIME.getTime()) / 1000 : 0;
+            logAction('timeline_tag_click', {
+              description: '點擊上方時間軸標籤',
+              tagName: tagName,
+              tagNameCn: '標籤名稱：' + tagName,
+              tagTimeOnVideoSec: timeSec,
+              tagTimeOnVideoCn: '標籤在影片軸上的時間點：' + timeSec.toFixed(2) + ' 秒'
+            });
+            seekCausedByTimelineTagClick = true;
+            video.currentTime = timeSec;
+            if (wavAvailable && audio) {
+              audio.currentTime = timeSec;
+            }
+          });
+
+          // 上方時間軸：範圍變更（縮放或左右拖曳）
+          timeline.on('rangechanged', function (props) {
+            var rangeStart = props.start;
+            var rangeEnd = props.end;
+            var newRange = { start: rangeStart.getTime(), end: rangeEnd.getTime(), width: rangeEnd - rangeStart };
+            if (lastTimelineRange == null) {
+              lastTimelineRange = newRange;
+              return;
+            }
+            if (timelineRangeDebounce) clearTimeout(timelineRangeDebounce);
+            timelineRangeDebounce = setTimeout(function () {
+              var widthDiff = newRange.width - lastTimelineRange.width;
+              var centerDiff = (newRange.start + newRange.end) / 2 - (lastTimelineRange.start + lastTimelineRange.end) / 2;
+              if (Math.abs(widthDiff) > 50) {
+                logAction('timeline_zoom', {
+                  description: widthDiff > 0 ? '上方時間軸放大' : '上方時間軸縮小',
+                  rangeStartMs: newRange.start,
+                  rangeEndMs: newRange.end
+                });
+              } else if (Math.abs(centerDiff) > 50) {
+                logAction('timeline_pan', {
+                  description: centerDiff > 0 ? '拉動上方時間軸往右' : '拉動上方時間軸往左',
+                  rangeStartMs: newRange.start,
+                  rangeEndMs: newRange.end
+                });
+              }
+              lastTimelineRange = newRange;
+              timelineRangeDebounce = null;
+            }, 100);
+          });
+
+          // 上方時間軸區域：滑鼠滾輪縮放（中文紀錄）
+          visContainer.addEventListener('wheel', function (e) {
+            if (timelineRangeDebounce) clearTimeout(timelineRangeDebounce);
+            timelineRangeDebounce = setTimeout(function () {
+              var desc = e.deltaY < 0 ? '上方時間軸滾輪放大' : '上方時間軸滾輪縮小';
+              logAction('timeline_wheel', { description: desc, deltaY: e.deltaY });
+              timelineRangeDebounce = null;
+            }, 200);
+          }, { passive: true });
+
+          scheduleSendHeight();
+        })
+        .catch(function (e) {
+          console.warn('[VideoReview] 時間軸資料載入失敗:', e);
+        });
+
+      // 持續更新「最後已知播放位置」，seeking 時瀏覽器可能已改 currentTime，用此當起始時間；並同步 WAV
+      video.addEventListener('timeupdate', function () {
+        lastKnownCurrentTime = video.currentTime;
+        syncAudioToVideo();
+        updateTimelinePositionMarker();
+      });
+      video.addEventListener('seeking', function () {
+        videoSeekStartTime = lastKnownCurrentTime;
+      });
+      video.addEventListener('seeked', function () {
+        lastKnownCurrentTime = video.currentTime;
+        syncAudioToVideo();
+        if (seekCausedByTimelineTagClick) {
+          seekCausedByTimelineTagClick = false;
+          videoSeekStartTime = null;
+          return;
+        }
+        var startSec = videoSeekStartTime != null ? videoSeekStartTime : lastKnownCurrentTime;
+        var endSec = video.currentTime;
+        logAction('video_timeline_seek', {
+          description: '影片時間軸操作（拉動或點擊）',
+          videoTimeStartSec: startSec,
+          videoTimeEndSec: endSec,
+          videoTimeStartCn: '起始時間標記：' + startSec.toFixed(2) + ' 秒',
+          videoTimeEndCn: '終止時間標記：' + endSec.toFixed(2) + ' 秒'
+        });
+        videoSeekStartTime = null;
+      });
+
+      video.addEventListener('play', function () {
+        logAction('play', { description: '播放影片', currentTime: video.currentTime });
+        syncAudioToVideo();
+        if (wavAvailable && audio) audio.play().catch(function () {});
+      });
+      video.addEventListener('pause', function () {
+        logAction('pause', { description: '暫停影片', currentTime: video.currentTime });
+        if (wavAvailable && audio) audio.pause();
+      });
+      video.addEventListener('click', function () {
+        logAction('video_click', { description: '點擊影片畫面', currentTime: video.currentTime });
+      });
+      video.addEventListener('volumechange', function () {
+        logAction('volumechange', { description: '音量變更', volume: video.volume, muted: video.muted });
+        if (wavAvailable && audio) {
+          audio.volume = video.volume;
+          audio.muted = video.muted;
+        }
+      });
+      video.addEventListener('ratechange', function () {
+        logAction('ratechange', { description: '播放速度變更', playbackRate: video.playbackRate });
+        if (wavAvailable && audio) audio.playbackRate = video.playbackRate;
+      });
+      video.addEventListener('canplay', function () {
+        syncAudioToVideo();
+      });
+
+      videoContainer.addEventListener('wheel', function (e) {
+        var desc = e.deltaY < 0 ? '影片區域滾輪（縮小方向）' : '影片區域滾輪（放大方向）';
+        logAction('video_wheel', { description: desc, deltaY: e.deltaY });
+      }, { passive: true });
+
+      lastKnownCurrentTime = video.currentTime;
+      scheduleSendHeight();
+      window.addEventListener('resize', scheduleSendHeight);
+    })();
+  </script>
+</body>
+</html>

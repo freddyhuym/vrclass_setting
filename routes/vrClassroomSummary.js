@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { COLLECTIONS } = require('../models/vrLegacyData');
+const { COLLECTIONS, EventLookingData } = require('../models/vrLegacyData');
 
 const LEGACY_BY_KEY = Object.fromEntries(COLLECTIONS.map(({ key, Model }) => [key, Model]));
 
@@ -62,6 +62,34 @@ router.get('/summary', async (req, res, next) => {
       .slice(0, 15);
 
     res.json({ success: true, byCollection, recent });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * 影片複盤頁（public/custom/video-review.html）用的時間軸資料。
+ * judge 欄位（Unity Up_Event_Looking 寫入，UpDataToNode.cs 的 UpData_List[29]）本身
+ * 就是可讀的中文語意標籤（例如「推論-結束」「整體認知負荷-開始」），直接拿來當標籤內容，
+ * 不比照舊版 Strapi controller 那套針對固定劇本命名寫死的 tag 規則。
+ */
+router.get('/review-timeline/:uid', async (req, res, next) => {
+  try {
+    const uid = String(req.params.uid || '').trim();
+    if (!uid) {
+      return res.status(400).json({ success: false, message: '缺少 uid' });
+    }
+    const rows = await EventLookingData.find({ uid })
+      .sort({ mission_time_sec: 1 })
+      .lean();
+    const events = rows
+      .filter((r) => r.judge && String(r.judge).trim())
+      .map((r, i) => ({
+        id: i + 1,
+        content: String(r.judge).trim(),
+        mission_time_sec: Number(r.mission_time_sec) || 0
+      }));
+    res.json({ success: true, data: events });
   } catch (e) {
     next(e);
   }

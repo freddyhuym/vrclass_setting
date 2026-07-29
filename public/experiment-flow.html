@@ -339,6 +339,10 @@
         await loadCustomPages();
       } else if (sel.value === 'gptfeedback') {
         await loadGptfeedbackPages();
+        const idx = parseInt(sel.closest('tr').dataset.index, 10);
+        if (!Number.isNaN(idx) && steps[idx] && !steps[idx].customPath) {
+          steps[idx].customPath = pickDefaultGptHtmlPath();
+        }
       }
       setPageListsHint();
       renderTable();

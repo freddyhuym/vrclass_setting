@@ -54,6 +54,12 @@
       height: 200px;
       display: block;
     }
+    /* video-review 等需要依內容自動撐高的 custom 頁：先給合理起始值，等 iframe 回報高度後再由 JS 覆蓋 */
+    .exp-custom-frame--auto-height {
+      min-height: 0;
+      height: 500px;
+      display: block;
+    }
     .survey-page {
       margin-bottom: 1.25rem;
       padding-bottom: 0.75rem;
@@ -476,7 +482,9 @@
         return;
       }
       if (d.type === 'vrclass-iframe-height' && d.height) {
-        const ifr = document.querySelector('#exp-content iframe.exp-custom-frame--set-uid');
+        const ifr = document.querySelector(
+          '#exp-content iframe.exp-custom-frame--set-uid, #exp-content iframe.exp-custom-frame--auto-height'
+        );
         if (ifr) {
           ifr.style.height = Math.max(100, Math.round(d.height)) + 'px';
         }
@@ -1028,13 +1036,16 @@
         }
       } else if (step.type === 'custom' && step.customPath) {
         const isSetUid = /set-uid\.html/i.test(String(step.customPath));
+        const isVideoReview = /video-review\.html/i.test(String(step.customPath));
         currentStepIsSetUid = isSetUid;
         if (isSetUid) {
           container.classList.add('exp-instruction--set-uid');
         }
         container.innerHTML = '';
         const iframe = document.createElement('iframe');
-        iframe.className = isSetUid ? 'exp-custom-frame exp-custom-frame--set-uid' : 'exp-custom-frame';
+        iframe.className = 'exp-custom-frame' +
+          (isSetUid ? ' exp-custom-frame--set-uid' : '') +
+          (isVideoReview ? ' exp-custom-frame--auto-height' : '');
         iframe.src = step.customPath;
         container.appendChild(iframe);
         if (isSetUid) {
