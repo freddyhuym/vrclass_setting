@@ -304,6 +304,82 @@
       font-size: 0.95rem;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
     }
+
+    /* ===== 仿 Google 表單：每一題各自一張卡，卡片之間用間距分開 ===== */
+    .survey-form {
+      font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif;
+      color: #1f2937;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .survey-card {
+      background: #fff;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      padding: 1.5rem 1.75rem;
+      margin: 0 0 0.75rem;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    }
+    /* 頁標題卡：頂端色條 */
+    .survey-card--header {
+      border-top: 10px solid #26a69a;
+    }
+    .survey-card--header h4 {
+      margin: 0;
+      font-size: 46px;
+      line-height: 1.22;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    /* 正在作答的那一題：左側色條 */
+    .survey-card.survey-q:focus-within {
+      border-left: 6px solid #26a69a;
+      padding-left: calc(1.75rem - 5px);
+    }
+    .survey-card.survey-q {
+      margin-bottom: 0.75rem;
+    }
+    .survey-card.survey-q .survey-q-title {
+      margin-bottom: 1rem;
+    }
+    .survey-card .survey-choices label:last-child {
+      margin-bottom: 0;
+    }
+    /* 原本只套在 .survey-material-card 底下的輸入框樣式，卡片版也要套 */
+    .survey-form input[type="text"],
+    .survey-form input[type="date"],
+    .survey-form select {
+      width: 100%;
+      height: 32px;
+      border: 1px solid #cfd4da;
+      border-radius: 4px;
+      background: #fff;
+      padding: 4px 10px;
+      font-size: 18px;
+      color: #111827;
+      box-sizing: border-box;
+      outline: none;
+    }
+    .survey-form input[type="text"]::placeholder {
+      color: #6b7280;
+      font-size: 16px;
+    }
+    .survey-form input[type="radio"],
+    .survey-form input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    .survey-form .survey-page-error {
+      margin: 0.25rem 0 0.75rem;
+    }
+    .survey-form .survey-inner-nav {
+      justify-content: flex-start;
+      margin-top: 0.5rem;
+      padding-top: 0;
+      border-top: none;
+    }
   </style>
 </head>
 <body>
@@ -717,14 +793,16 @@
           const page = surveyRuntime.pages[pIdx];
           const elements = Array.isArray(page?.elements) ? page.elements : [];
           const parts = [];
-          parts.push(`<div class="survey-wrapper survey-material-card">`);
-          parts.push(`<div class="survey-material-content">`);
-          parts.push(`<div class="survey-page survey-row">`);
-          parts.push(`<h4>${escapeHtml(page.title || ('第 ' + (pIdx + 1) + ' 頁'))}</h4>`);
+          // 仿 Google 表單：每一題各自一張卡（有頁標題的話頁標題也是一張卡）
+          parts.push(`<div class="survey-wrapper survey-form">`);
+          // 只有量表裡真的有填頁標題才顯示，不自動補「第 N 頁」
+          if (page.title) {
+            parts.push(`<div class="survey-card survey-card--header"><h4>${escapeHtml(page.title)}</h4></div>`);
+          }
           elements.forEach((el, qIdx) => {
             const qName = escapeHtml(el.name || ('q_' + pIdx + '_' + qIdx));
             const qTitle = escapeHtml(el.title || el.name || ('題目 ' + (qIdx + 1)));
-            parts.push(`<div class="survey-q" data-qname="${qName}" data-qtype="${escapeHtml(el.type || 'text')}">`);
+            parts.push(`<div class="survey-card survey-q" data-qname="${qName}" data-qtype="${escapeHtml(el.type || 'text')}">`);
             parts.push(`<div class="survey-q-title">${qTitle}${el.isRequired ? ' <span style="color:#dc2626">*</span>' : ''}</div>`);
             if (el.type === 'radiogroup') {
               parts.push(`<div class="survey-choices">`);
@@ -770,8 +848,6 @@
           }
           parts.push(`<div class="survey-inner-nav">`);
           parts.push(`<button type="button" class="survey-inner-btn" id="survey-page-next">${pIdx >= surveyRuntime.pages.length - 1 ? '送出' : '下一頁'}</button>`);
-          parts.push(`</div>`);
-          parts.push(`</div>`);
           parts.push(`</div>`);
           parts.push(`</div>`);
           container.innerHTML = parts.join('');
