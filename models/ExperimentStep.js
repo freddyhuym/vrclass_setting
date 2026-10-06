@@ -5,16 +5,19 @@ const experimentStepSchema = new mongoose.Schema({
   key: { type: String, required: true, index: true, unique: true },
   // 顯示名稱（給研究者看的中文名稱）
   name: { type: String, required: true },
-  // 步驟類型：survey、instruction、custom 自訂 HTML、gptfeedback 自訂 HTML+GPT 提示詞
-  type: { type: String, enum: ['survey', 'instruction', 'custom', 'gptfeedback'], required: true },
+  // 步驟類型：survey、instruction、custom 自訂 HTML、gptfeedback 自訂 HTML+GPT 提示詞、
+  // gptrealtime 自訂 HTML+即時語音辨識（受試者/施測者對話逐字稿）
+  type: { type: String, enum: ['survey', 'instruction', 'custom', 'gptfeedback', 'gptrealtime'], required: true },
   // 依類型不同，對應的 key 或路徑：
   // - survey: 對應某個量表或情境的 key
   // - instruction: 指導語 Instruction.key
   // - custom: 自訂 HTML 路徑（建議 /setting/custom/...）
   // - gptfeedback: 自訂 HTML 路徑（建議 /setting/gptfeedback/...）+ gptPrompt
+  // - gptrealtime: 自訂 HTML 路徑（建議 /setting/gptrealtime/...）+ gptPrompt（選填的畫面說明文字）
   refKey: { type: String },
   customPath: { type: String },
   // gptfeedback：給內嵌頁／前端呼叫 GPT 的提示說明（實驗執行時寫入 sessionStorage）
+  // gptrealtime：選填，顯示給施測者看的畫面說明文字（同樣經 sessionStorage 傳入內嵌頁，不會送給模型）
   gptPrompt: { type: String },
   // 所屬流程 key，預設 'default'，之後可擴充多個流程
   flowKey: { type: String, default: 'default', index: true },

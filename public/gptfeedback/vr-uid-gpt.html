@@ -28,7 +28,7 @@
 </head>
 <body>
   <div class="g-wrap">
-    <h1 class="g-h1" style="font-size:1.05rem;margin:0 0 0.75rem;color:var(--muted)">綜合回饋</h1>
+    <h1 class="g-h1" style="font-size:1.05rem;margin:0 0 0.75rem;color:var(--muted)">綜合回饋<span id="g-uid"></span></h1>
     <div id="g-loading" class="g-loading" role="status" aria-live="polite">
       <div class="g-spinner" aria-hidden="true"></div>
       <span>載入中，正在讀取資料並請求 GPT 分析，請稍候…</span>
@@ -47,6 +47,7 @@
       var elErr = document.getElementById('g-err');
       var elOut = document.getElementById('g-out');
       var elCounts = document.getElementById('g-counts');
+      var elUid = document.getElementById('g-uid');
       var btn = document.getElementById('g-retry');
 
       function stepPrompt() {
@@ -84,6 +85,7 @@
         btn.hidden = true;
 
         var uid = getUid();
+        elUid.textContent = uid ? '（受試者編號：' + uid + '）' : '';
         if (!uid) {
           elLoad.hidden = true;
           elErr.hidden = false;

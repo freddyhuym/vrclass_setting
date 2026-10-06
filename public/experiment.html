@@ -1052,7 +1052,7 @@
           document.getElementById('btn-primary-next').disabled = true;
         }
         bindContainerClickTracking(container, step.key);
-      } else if (step.type === 'gptfeedback' && step.customPath) {
+      } else if ((step.type === 'gptfeedback' || step.type === 'gptrealtime') && step.customPath) {
         container.innerHTML = '';
         try {
           const promptText = step.gptPrompt != null ? String(step.gptPrompt) : '';
@@ -1064,6 +1064,9 @@
         iframe.className = 'exp-custom-frame';
         const hasQuery = String(step.customPath).indexOf('?') >= 0;
         iframe.src = step.customPath + (hasQuery ? '&' : '?') + 'gptStep=' + encodeURIComponent(step.key);
+        if (step.type === 'gptrealtime') {
+          iframe.allow = 'microphone';
+        }
         container.appendChild(iframe);
         bindContainerClickTracking(container, step.key);
       } else if (step.type === 'survey') {

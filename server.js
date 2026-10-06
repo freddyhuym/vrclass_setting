@@ -4,6 +4,7 @@ const path = require('path');
 const cors = require('cors');
 const { createServer } = require('http');
 const connectDB = require('./config/db');
+const apiDebugLog = require('./utils/apiDebugLog');
 
 const app = express();
 const server = createServer(app);
@@ -13,9 +14,23 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 connectDB();
 
+// J 追蹤「VR對話資料為什麼沒存進資料庫」：這個middleware擺在express.json()之前、所有路由最前面，
+// 只要TCP連線真的建立、請求真的送進Express，這裡就一定會印一筆。如果Unity那邊記錄「送出失敗
+// ConnectionError」的那個時間點，這裡完全沒有對應的一筆，代表問題出在請求根本沒送到(網路層/防火牆/
+// 這台機器當下忙到連accept都來不及)，不是Express或MongoDB處理慢——這樣可以直接把範圍縮小一半。
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/recording')) {
+    apiDebugLog.append(`[REQUEST-IN] ${req.method} ${req.originalUrl} content-length=${req.headers['content-length'] || '?'} from=${req.ip}`);
+  }
+  next();
+});
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+// 影片複盤頁（video-review.html）用的影片/音檔由 VRCLASS 直接寫入 video/（不放 public，避免進版控），
+// 掛在跟舊路徑相同的網址上，video-review.html 不用改
+app.use('/setting/video-review-data', express.static(path.join(__dirname, 'video')));
 // 靜態網站統一掛在 /setting 底下
 app.use('/setting', express.static(path.join(__dirname, 'public')));
 
@@ -38,6 +53,8 @@ app.use('/api/gpt-vr', require('./routes/gptVr'));
 app.use('/api/vr-emotion', require('./routes/vrEmotion'));
 // 本地語音辨識（faster-whisper），取代語音對話原本每輪都要上傳到 OpenAI Whisper 雲端的做法
 app.use('/api/stt', require('./routes/stt'));
+// gptrealtime 步驟：受試者/施測者即時語音辨識（OpenAI Realtime transcription，瀏覽器端 WebRTC）
+app.use('/api/realtime-transcribe', require('./routes/realtimeTranscribe'));
 // VR 即時語音辨識（WebSocket）：ws://<host>:<port>/ws/vr-emotion/stt
 require('./routes/vrEmotionStream').attach(server);
 

@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>即時語音辨識 — 對話紀錄</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    .rt-wrap { max-width: 880px; margin: 0 auto; padding: 1.25rem 1rem 2.5rem; }
+    .rt-h1 { font-size: 1.05rem; margin: 0 0 0.75rem; color: var(--muted); }
+    .rt-meta { color: var(--muted); font-size: 0.88rem; margin: 0 0 1rem; line-height: 1.5; }
+    .rt-note {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 0.85rem 1rem; margin: 0 0 1rem; font-size: 0.9rem; white-space: pre-wrap; line-height: 1.55;
+    }
+    .rt-note[hidden] { display: none !important; }
+
+    .rt-status-bar {
+      display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; flex-wrap: wrap;
+    }
+    .rt-dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--muted); flex: none; }
+    .rt-dot.connecting { background: #d97706; animation: rt-pulse 1s ease-in-out infinite; }
+    .rt-dot.recording { background: var(--success); animation: rt-pulse 1s ease-in-out infinite; }
+    .rt-dot.error { background: var(--danger); }
+    @keyframes rt-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+    .rt-status-text { font-size: 0.92rem; }
+    .rt-count { font-size: 0.82rem; color: var(--muted); margin-left: auto; }
+
+    .rt-btns { margin-bottom: 1rem; display: flex; gap: 0.6rem; }
+    #rt-start { background: var(--accent); color: #fff; border: none; }
+    #rt-stop { background: var(--danger); color: #fff; border: none; }
+    button[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+    .rt-err { color: var(--danger); font-size: 0.9rem; margin-bottom: 1rem; white-space: pre-wrap; }
+    .rt-err[hidden] { display: none !important; }
+
+    .rt-panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 1rem 1.1rem; min-height: 10rem; max-height: 26rem; overflow-y: auto;
+    }
+    .rt-line { padding: 0.35rem 0; line-height: 1.6; border-bottom: 1px dashed var(--border); }
+    .rt-line:last-child { border-bottom: none; }
+    .rt-line-time { color: var(--muted); font-size: 0.76rem; margin-right: 0.5rem; }
+    .rt-empty { color: var(--muted); font-size: 0.9rem; }
+    .rt-partial { color: var(--muted); font-style: italic; padding: 0.35rem 0; }
+    .rt-partial[hidden] { display: none !important; }
+    .rt-save-warn { font-size: 0.78rem; color: #d97706; margin-top: 0.15rem; }
+  </style>
+</head>
+<body>
+  <div class="rt-wrap">
+    <h1 class="rt-h1">即時語音辨識 — 受試者與施測者對話紀錄<span id="rt-uid"></span></h1>
+    <div class="rt-meta">單一麥克風收音、不分說話者標記，逐句辨識完成即自動存檔。按「開始」後請允許瀏覽器使用麥克風。</div>
+
+    <div id="rt-note" class="rt-note" hidden></div>
+
+    <div class="rt-status-bar">
+      <span class="rt-dot" id="rt-dot"></span>
+      <span class="rt-status-text" id="rt-status-text">尚未開始</span>
+      <span class="rt-count" id="rt-count"></span>
+    </div>
+
+    <div class="rt-btns">
+      <button type="button" id="rt-start">開始錄音辨識</button>
+      <button type="button" id="rt-stop" disabled>停止</button>
+    </div>
+
+    <div id="rt-err" class="rt-err" hidden></div>
+
+    <div class="rt-panel" id="rt-panel">
+      <div class="rt-empty" id="rt-empty">尚無逐字稿。按「開始錄音辨識」後，講話內容會即時顯示在這裡。</div>
+      <div class="rt-partial" id="rt-partial" hidden></div>
+    </div>
+  </div>
+
+  <script src="../js/vrSessionUid.js"></script>
+  <script>
+    (function () {
+      var elUid = document.getElementById('rt-uid');
+      var elNote = document.getElementById('rt-note');
+      var elDot = document.getElementById('rt-dot');
+      var elStatusText = document.getElementById('rt-status-text');
+      var elCount = document.getElementById('rt-count');
+      var btnStart = document.getElementById('rt-start');
+      var btnStop = document.getElementById('rt-stop');
+      var elErr = document.getElementById('rt-err');
+      var elPanel = document.getElementById('rt-panel');
+      var elEmpty = document.getElementById('rt-empty');
+      var elPartial = document.getElementById('rt-partial');
+
+      var pc = null;
+      var micStream = null;
+      var dataChannel = null;
+      var sessionId = null;
+      var seq = 0;
+      var savedCount = 0;
+      var saveFailCount = 0;
+      var partialByItem = {}; // item_id -> 目前累積的部分文字
+
+      function uuid() {
+        if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+        return 'rt-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+      }
+
+      /** 與 gptfeedback 頁一致：優先 VrSessionUid，否則用受試者編號 */
+      function getUid() {
+        var a = (window.VrSessionUid && VrSessionUid.get() || '').trim();
+        if (a) return a;
+        try {
+          a = (sessionStorage.getItem('experimentSubjectId') || '').trim();
+        } catch (e) {
+          a = '';
+        }
+        if (a && window.VrSessionUid) {
+          VrSessionUid.set(a, { persistDevice: false });
+        }
+        return a;
+      }
+
+      function stepNote() {
+        var sk = new URLSearchParams(window.location.search).get('gptStep');
+        if (sk) {
+          var t = sessionStorage.getItem('vrGptPrompt:' + sk);
+          if (t != null && t !== '') return t;
+        }
+        return '';
+      }
+
+      function getMeta() {
+        var meta = {};
+        try {
+          meta.experimentCode = (sessionStorage.getItem('experimentCode') || '').trim() || undefined;
+        } catch (e) {}
+        try {
+          meta.sessionKeyFromApp = (sessionStorage.getItem('experimentSessionId') || '').trim() || undefined;
+        } catch (e) {}
+        var sk = new URLSearchParams(window.location.search).get('gptStep');
+        if (sk) meta.stepKey = sk;
+        return meta;
+      }
+
+      function setStatus(kind, text) {
+        elDot.className = 'rt-dot' + (kind ? ' ' + kind : '');
+        elStatusText.textContent = text;
+      }
+
+      function showErr(text) {
+        elErr.hidden = !text;
+        elErr.textContent = text || '';
+      }
+
+      function updateCount() {
+        var parts = [savedCount + ' 句已存檔'];
+        if (saveFailCount > 0) parts.push(saveFailCount + ' 句存檔失敗');
+        elCount.textContent = parts.join('，');
+      }
+
+      function appendFinalLine(text) {
+        elEmpty.hidden = true;
+        var row = document.createElement('div');
+        row.className = 'rt-line';
+        var t = document.createElement('span');
+        t.className = 'rt-line-time';
+        t.textContent = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+        row.appendChild(t);
+        row.appendChild(document.createTextNode(text));
+        elPanel.insertBefore(row, elPartial);
+        elPanel.scrollTop = elPanel.scrollHeight;
+      }
+
+      function updatePartial(text) {
+        if (!text) {
+          elPartial.hidden = true;
+          elPartial.textContent = '';
+          return;
+        }
+        elPartial.hidden = false;
+        elPartial.textContent = '（辨識中）' + text;
+        elPanel.scrollTop = elPanel.scrollHeight;
+      }
+
+      function saveSegment(text) {
+        var uid = getUid();
+        var meta = getMeta();
+        seq += 1;
+        var body = {
+          uid: uid,
+          sessionId: sessionId,
+          seq: seq,
+          text: text,
+          stepKey: meta.stepKey,
+          experimentCode: meta.experimentCode
+        };
+        fetch('/api/realtime-transcribe/segment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (o) {
+            if (o.ok && o.d && o.d.success) {
+              savedCount += 1;
+            } else {
+              saveFailCount += 1;
+              console.error('存檔逐字稿失敗', o.d);
+            }
+            updateCount();
+          })
+          .catch(function (e) {
+            saveFailCount += 1;
+            updateCount();
+            console.error('存檔逐字稿失敗', e);
+          });
+      }
+
+      function handleRealtimeEvent(evt) {
+        if (!evt || !evt.type) return;
+        if (evt.type === 'conversation.item.input_audio_transcription.delta') {
+          var id = evt.item_id || 'default';
+          partialByItem[id] = (partialByItem[id] || '') + (evt.delta || '');
+          updatePartial(partialByItem[id]);
+          return;
+        }
+        if (evt.type === 'conversation.item.input_audio_transcription.completed') {
+          var id2 = evt.item_id || 'default';
+          delete partialByItem[id2];
+          updatePartial('');
+          var text = (evt.transcript || '').trim();
+          if (text) {
+            appendFinalLine(text);
+            saveSegment(text);
+          }
+          return;
+        }
+        if (evt.type === 'error') {
+          var msg = (evt.error && evt.error.message) || JSON.stringify(evt);
+          showErr('即時辨識發生錯誤：' + msg);
+        }
+      }
+
+      function cleanupConnection() {
+        if (dataChannel) {
+          try { dataChannel.close(); } catch (e) {}
+          dataChannel = null;
+        }
+        if (pc) {
+          try { pc.close(); } catch (e) {}
+          pc = null;
+        }
+        if (micStream) {
+          micStream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+          micStream = null;
+        }
+        updatePartial('');
+      }
+
+      async function start() {
+        showErr('');
+        var uid = getUid();
+        if (!uid) {
+          showErr('未偵測到受試者編號（uid）。請先完成前面「請輸入受試者編號」步驟並按「下一步」。');
+          return;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          showErr('此瀏覽器不支援麥克風錄音（getUserMedia）。');
+          return;
+        }
+        btnStart.disabled = true;
+        setStatus('connecting', '連線中…');
+        if (!sessionId) sessionId = uuid();
+
+        try {
+          var tokRes = await fetch('/api/realtime-transcribe/token', { method: 'POST' });
+          var tokData = await tokRes.json();
+          if (!tokRes.ok || !tokData.success || !tokData.value) {
+            throw new Error((tokData && tokData.message) || '取得短效金鑰失敗');
+          }
+          var ephemeralKey = tokData.value;
+
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+          pc = new RTCPeerConnection();
+          micStream.getTracks().forEach(function (track) { pc.addTrack(track, micStream); });
+
+          dataChannel = pc.createDataChannel('oai-events');
+          dataChannel.addEventListener('message', function (e) {
+            try {
+              handleRealtimeEvent(JSON.parse(e.data));
+            } catch (err) {
+              console.error('解析即時辨識事件失敗', err, e.data);
+            }
+          });
+          dataChannel.addEventListener('open', function () {
+            setStatus('recording', '辨識中…');
+            btnStop.disabled = false;
+          });
+          dataChannel.addEventListener('close', function () {
+            if (pc) setStatus('', '已停止');
+          });
+
+          var offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+
+          var sdpRes = await fetch('https://api.openai.com/v1/realtime/calls', {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer ' + ephemeralKey,
+              'Content-Type': 'application/sdp'
+            },
+            body: offer.sdp
+          });
+          if (!sdpRes.ok) {
+            var errText = await sdpRes.text().catch(function () { return ''; });
+            throw new Error('與 OpenAI 建立連線失敗（HTTP ' + sdpRes.status + '）' + (errText ? '：' + errText.slice(0, 300) : ''));
+          }
+          var answerSdp = await sdpRes.text();
+          await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+        } catch (e) {
+          showErr('開始失敗：' + (e && e.message ? e.message : e));
+          setStatus('error', '發生錯誤');
+          cleanupConnection();
+          btnStart.disabled = false;
+          btnStop.disabled = true;
+        }
+      }
+
+      function stop() {
+        btnStop.disabled = true;
+        cleanupConnection();
+        setStatus('', '已停止（可再按「開始」繼續錄）');
+        btnStart.disabled = false;
+      }
+
+      window.addEventListener('pagehide', cleanupConnection);
+      window.addEventListener('beforeunload', cleanupConnection);
+
+      btnStart.addEventListener('click', start);
+      btnStop.addEventListener('click', stop);
+
+      var uid0 = getUid();
+      elUid.textContent = uid0 ? '（受試者編號：' + uid0 + '）' : '';
+      var note = stepNote();
+      if (note) {
+        elNote.hidden = false;
+        elNote.textContent = note;
+      }
+      updateCount();
+    })();
+  </script>
+</body>
+</html>

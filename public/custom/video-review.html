@@ -30,7 +30,8 @@
         <video id="vr-video" controls>
           Your browser does not support the video tag.
         </video>
-        <audio id="vr-audio" class="hidden" style="display:none;"></audio>
+        <audio id="vr-audio-computer" style="display:none;"></audio>
+        <audio id="vr-audio-mic" style="display:none;"></audio>
       </div>
     </div>
   </div>
@@ -41,7 +42,10 @@
       var elErr = document.getElementById('vr-err');
       var elContent = document.getElementById('vr-content');
       var video = document.getElementById('vr-video');
-      var audio = document.getElementById('vr-audio');
+      var audioTracks = [
+        document.getElementById('vr-audio-computer'),
+        document.getElementById('vr-audio-mic')
+      ];
       var videoContainer = document.getElementById('vr-video-container');
       var visContainer = document.getElementById('vr-visualization-container');
 
@@ -103,8 +107,18 @@
 
       elContent.hidden = false;
 
+      // 一開啟複盤頁就觸發後端把這個 uid 的 computer/microphone 音檔做語音辨識、逐句存進資料庫
+      // （VideoReviewTranscriptSegment）。已經轉錄過的 uid 後端會直接回 cached，不重跑；
+      // 這裡不等回應、不影響播放，失敗也只是少了逐字稿，不擋住複盤頁本身。
+      fetch('/api/vr-classroom/review-transcript/' + encodeURIComponent(uid), { method: 'POST' })
+        .catch(function (e) {
+          console.warn('[VideoReview] 音檔語音辨識觸發失敗:', e);
+        });
+
+      // 影片本身不含聲音（Unity 端分開錄成 3 個檔案），播放時另外載入電腦聲音跟麥克風聲音、跟影片同步播放
       video.innerHTML = '<source src="/setting/video-review-data/' + encodeURIComponent(uid) + '.mp4" type="video/mp4">Your browser does not support the video tag.';
-      audio.src = '/setting/video-review-data/sound' + encodeURIComponent(uid) + '.wav';
+      audioTracks[0].src = '/setting/video-review-data/computer' + encodeURIComponent(uid) + '.wav';
+      audioTracks[1].src = '/setting/video-review-data/microphone' + encodeURIComponent(uid) + '.wav';
 
       /** 下方影片時間軸：記錄拉動/點擊的起始與終止時間 */
       var videoSeekStartTime = null;
@@ -115,34 +129,28 @@
       /** 上方時間軸（vis-timeline）範圍，用於判斷縮放或左右拖曳 */
       var lastTimelineRange = null;
       var timelineRangeDebounce = null;
-      /** 若 WAV 載入失敗則為 false，僅播放影片、略過所有 WAV 同步 */
-      var wavAvailable = true;
-      /** vis-timeline 實例（時間軸資料非同步載入完才會建立），供影片播放位置游標使用 */
-      var timelineInstance = null;
+      /** 對應 audioTracks，個別記錄哪個音軌載入失敗（例如那次錄製沒有電腦聲音），失敗的就跳過同步 */
+      var audioTrackAvailable = audioTracks.map(function () { return true; });
 
       var BASE_TIME = new Date('2023-01-01T00:00:00');
 
-      function syncAudioToVideo() {
-        if (!wavAvailable || !audio || !video) return;
+      function syncAudioTracksToVideo() {
         var t = video.currentTime;
-        if (Math.abs(audio.currentTime - t) > 0.05) {
-          audio.currentTime = t;
-        }
-        audio.playbackRate = video.playbackRate;
-        audio.volume = video.volume;
-        audio.muted = video.muted;
+        audioTracks.forEach(function (audio, i) {
+          if (!audioTrackAvailable[i] || !audio) return;
+          if (Math.abs(audio.currentTime - t) > 0.05) audio.currentTime = t;
+          audio.playbackRate = video.playbackRate;
+          audio.volume = video.volume;
+          audio.muted = video.muted;
+        });
       }
 
-      audio.addEventListener('error', function () {
-        wavAvailable = false;
-        console.warn('[VideoReview] WAV 無法載入，僅播放影片');
+      audioTracks.forEach(function (audio, i) {
+        audio.addEventListener('error', function () {
+          audioTrackAvailable[i] = false;
+          console.warn('[VideoReview] 音軌 ' + i + ' 無法載入，略過同步:', audio.src);
+        });
       });
-
-      /** 把上方時間軸的「目前播放位置」游標移到跟影片目前播放秒數對齊的地方 */
-      function updateTimelinePositionMarker() {
-        if (!timelineInstance) return;
-        timelineInstance.setCustomTime(new Date(BASE_TIME.getTime() + video.currentTime * 1000), 'video-position');
-      }
 
       fetch('/api/vr-classroom/review-timeline/' + encodeURIComponent(uid))
         .then(function (r) { return r.json(); })
@@ -170,12 +178,6 @@
             }
           };
           var timeline = new vis.Timeline(container, data, options);
-          timelineInstance = timeline;
-
-          // 影片目前播放位置游標：跟著 video.currentTime 移動，讓時間軸跟影片畫面對得起來
-          timeline.addCustomTime(BASE_TIME, 'video-position');
-          timeline.setCustomTimeTitle('目前播放位置', 'video-position');
-          updateTimelinePositionMarker();
 
           // 點擊上方時間軸標籤：只記錄標籤名稱與標籤在影片軸上的時間點，不記錄影片拉動；影片與 WAV 同步跳轉
           timeline.on('select', function (properties) {
@@ -193,9 +195,7 @@
             });
             seekCausedByTimelineTagClick = true;
             video.currentTime = timeSec;
-            if (wavAvailable && audio) {
-              audio.currentTime = timeSec;
-            }
+            syncAudioTracksToVideo();
           });
 
           // 上方時間軸：範圍變更（縮放或左右拖曳）
@@ -245,18 +245,17 @@
           console.warn('[VideoReview] 時間軸資料載入失敗:', e);
         });
 
-      // 持續更新「最後已知播放位置」，seeking 時瀏覽器可能已改 currentTime，用此當起始時間；並同步 WAV
+      // 持續更新「最後已知播放位置」，seeking 時瀏覽器可能已改 currentTime，用此當起始時間；並同步兩個音軌
       video.addEventListener('timeupdate', function () {
         lastKnownCurrentTime = video.currentTime;
-        syncAudioToVideo();
-        updateTimelinePositionMarker();
+        syncAudioTracksToVideo();
       });
       video.addEventListener('seeking', function () {
         videoSeekStartTime = lastKnownCurrentTime;
       });
       video.addEventListener('seeked', function () {
         lastKnownCurrentTime = video.currentTime;
-        syncAudioToVideo();
+        syncAudioTracksToVideo();
         if (seekCausedByTimelineTagClick) {
           seekCausedByTimelineTagClick = false;
           videoSeekStartTime = null;
@@ -276,29 +275,30 @@
 
       video.addEventListener('play', function () {
         logAction('play', { description: '播放影片', currentTime: video.currentTime });
-        syncAudioToVideo();
-        if (wavAvailable && audio) audio.play().catch(function () {});
+        syncAudioTracksToVideo();
+        audioTracks.forEach(function (audio, i) {
+          if (audioTrackAvailable[i]) audio.play().catch(function () {});
+        });
       });
       video.addEventListener('pause', function () {
         logAction('pause', { description: '暫停影片', currentTime: video.currentTime });
-        if (wavAvailable && audio) audio.pause();
+        audioTracks.forEach(function (audio, i) {
+          if (audioTrackAvailable[i]) audio.pause();
+        });
       });
       video.addEventListener('click', function () {
         logAction('video_click', { description: '點擊影片畫面', currentTime: video.currentTime });
       });
       video.addEventListener('volumechange', function () {
         logAction('volumechange', { description: '音量變更', volume: video.volume, muted: video.muted });
-        if (wavAvailable && audio) {
-          audio.volume = video.volume;
-          audio.muted = video.muted;
-        }
+        syncAudioTracksToVideo();
       });
       video.addEventListener('ratechange', function () {
         logAction('ratechange', { description: '播放速度變更', playbackRate: video.playbackRate });
-        if (wavAvailable && audio) audio.playbackRate = video.playbackRate;
+        syncAudioTracksToVideo();
       });
       video.addEventListener('canplay', function () {
-        syncAudioToVideo();
+        syncAudioTracksToVideo();
       });
 
       videoContainer.addEventListener('wheel', function (e) {

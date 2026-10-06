@@ -63,11 +63,12 @@
         - 類型為 <strong>survey</strong> 時，請在「對應 key / 路徑」填入量表或情境的 key。<br>
         - 類型為 <strong>instruction</strong> 時，填入指導語的 key（`Instruction.key`）。<br>
         - 類型為 <strong>custom</strong> 時，將自訂 HTML 放在專案 <code>public/custom/</code> 下，路徑如 <code>/setting/custom/檔名.html</code>，與 <strong>gptfeedback</strong> 分開。<br>
-        - 類型為 <strong>gptfeedback</strong> 時，頁面放 <code>public/gptfeedback/</code>，路徑如 <code>/setting/gptfeedback/檔名.html</code>，並可展開「編輯 GPT 提示詞」輸入給模型用的內容（執行實驗時會寫入 sessionStorage 供內嵌頁讀取）。</p>
+        - 類型為 <strong>gptfeedback</strong> 時，頁面放 <code>public/gptfeedback/</code>，路徑如 <code>/setting/gptfeedback/檔名.html</code>，並可展開「編輯 GPT 提示詞」輸入給模型用的內容（執行實驗時會寫入 sessionStorage 供內嵌頁讀取）。<br>
+        - 類型為 <strong>gptrealtime</strong> 時，頁面放 <code>public/gptrealtime/</code>，路徑如 <code>/setting/gptrealtime/檔名.html</code>；用 OpenAI 即時語音辨識錄下受試者與施測者的對話（單一麥克風、不分說話者），逐句存進資料庫。可選展開「編輯畫面說明文字」，內容只顯示給施測者看，不會送給模型。</p>
       <div style="margin-bottom:0.75rem; display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem;">
         <button type="button" id="btn-add-step">新增步驟</button>
         <button type="button" id="btn-save-flow">儲存流程</button>
-        <button type="button" id="btn-refresh-custom" title="掃描 public/custom 與 public/gptfeedback 的 .html">重新偵測可選頁面</button>
+        <button type="button" id="btn-refresh-custom" title="掃描 public/custom、public/gptfeedback 與 public/gptrealtime 的 .html">重新偵測可選頁面</button>
         <span id="flow-msg"></span>
         <span id="custom-detect-hint" class="muted" style="font-size:0.85rem;width:100%;"></span>
       </div>
@@ -92,7 +93,8 @@
   - type = "instruction" 時，可再呼叫 `/api/instructions/by-key/{refKey}` 取得指導語 HTML。
   - type = "survey" 時，前端/Unity 可依 `refKey` 決定載入哪個量表或情境。
   - type = "custom" 時，以 `customPath` iframe 載入（建議 `/setting/custom/...`）。<br>
-  - type = "gptfeedback" 時，以 `customPath` iframe 載入（<strong>必須是</strong> `/setting/gptfeedback/xxx.html` 這類路徑）；<strong>給模型看的長段文字只填在</strong>「編輯 GPT 提示詞」(gptPrompt)。送後端 GPT 與綜合回饋的 uid／prompt 皆由內嵌頁 <code>POST /api/gpt-vr/analyze</code> 的 JSON body 傳出，<strong>與網址列的 /experiment/step3 之 step key 無關</strong>。若把提示詞誤貼在「路徑」欄，會導致頁面網址錯亂。內嵌網址並帶 <code>?gptStep={步驟key}</code> 供內嵌頁讀 sessionStorage 內的提示。
+  - type = "gptfeedback" 時，以 `customPath` iframe 載入（<strong>必須是</strong> `/setting/gptfeedback/xxx.html` 這類路徑）；<strong>給模型看的長段文字只填在</strong>「編輯 GPT 提示詞」(gptPrompt)。送後端 GPT 與綜合回饋的 uid／prompt 皆由內嵌頁 <code>POST /api/gpt-vr/analyze</code> 的 JSON body 傳出，<strong>與網址列的 /experiment/step3 之 step key 無關</strong>。若把提示詞誤貼在「路徑」欄，會導致頁面網址錯亂。內嵌網址並帶 <code>?gptStep={步驟key}</code> 供內嵌頁讀 sessionStorage 內的提示。<br>
+  - type = "gptrealtime" 時，以 `customPath` iframe 載入（<strong>必須是</strong> `/setting/gptrealtime/xxx.html` 這類路徑），iframe 會帶 <code>allow="microphone"</code>；內嵌頁用 OpenAI Realtime 即時語音辨識錄下受試者與施測者對話，逐句辨識完成就呼叫 <code>POST /api/realtime-transcribe/segment</code> 存檔，跟 uid 綁定。「編輯 GPT 提示詞」在這個類型是選填的畫面說明文字，不會送給模型。
       </div>
     </section>
   </main>
@@ -105,9 +107,11 @@
     let scaleOptions = [];
     let customPageOptions = [];
     let gptfeedbackPageOptions = [];
+    let gptrealtimePageOptions = [];
     /** 後端掃描失敗訊息 */
     let customPageListError = '';
     let gptPageListError = '';
+    let gptRealtimePageListError = '';
 
     function escAttr(s) {
       return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -121,7 +125,7 @@
       el.innerHTML = text ? '<span class="msg ' + (isErr ? 'error' : 'success') + '">' + text + '</span>' : '';
     }
 
-    /** 偵測 gpt 路徑欄被誤填成「提示詞本文」（非 / 開頭），移入 gptPrompt 並改綁專用 .html */
+    /** 偵測 gpt/realtime 路徑欄被誤填成「提示詞本文」（非 / 開頭），移入 gptPrompt 並改綁專用 .html */
     function pickDefaultGptHtmlPath() {
       if (gptfeedbackPageOptions && gptfeedbackPageOptions.length) {
         const byName = gptfeedbackPageOptions.find(p => p.path && /vr-uid-gpt\.html/i.test(p.path));
@@ -131,15 +135,24 @@
       return '/setting/gptfeedback/vr-uid-gpt.html';
     }
 
+    function pickDefaultRealtimeHtmlPath() {
+      if (gptrealtimePageOptions && gptrealtimePageOptions.length) {
+        const byName = gptrealtimePageOptions.find(p => p.path && /live-transcript\.html/i.test(p.path));
+        if (byName && byName.path) return byName.path;
+        return gptrealtimePageOptions[0].path;
+      }
+      return '/setting/gptrealtime/live-transcript.html';
+    }
+
     function repairGptfeedbackMistake(s) {
-      if (!s || s.type !== 'gptfeedback') return s;
+      if (!s || (s.type !== 'gptfeedback' && s.type !== 'gptrealtime')) return s;
       const cp = s.customPath != null ? String(s.customPath).trim() : '';
       if (!cp || cp.indexOf('/') === 0) return s;
       const mistaken = cp;
       const existing = s.gptPrompt != null ? String(s.gptPrompt).trim() : '';
       return {
         ...s,
-        customPath: pickDefaultGptHtmlPath(),
+        customPath: s.type === 'gptrealtime' ? pickDefaultRealtimeHtmlPath() : pickDefaultGptHtmlPath(),
         gptPrompt: existing || mistaken
       };
     }
@@ -202,6 +215,21 @@
               '<input class="flow-input" data-field="target-input" value="' + escAttr(cur) + '" placeholder="/setting/gptfeedback/vr-uid-gpt.html" style="margin-top:0.35rem;">' +
               '<details class="flow-gpt-prompt-box"' + (hasPrompt ? ' open' : '') + '><summary>編輯 GPT 提示詞</summary>' +
               '<textarea class="flow-input" data-field="gpt-prompt" rows="4" style="margin-top:0.35rem;resize:vertical;min-width:100%;box-sizing:border-box;">' + escHtml(prompt) + '</textarea></details></div>';
+          } else if (step.type === 'gptrealtime') {
+            const cur = step.customPath || '';
+            const prompt = step.gptPrompt != null && step.gptPrompt !== undefined ? String(step.gptPrompt) : '';
+            const hasPrompt = String(prompt).trim().length > 0;
+            const pickOpts = [
+              '<option value="">' + escHtml('（從 gptrealtime 清單帶入，或手填下方）') + '</option>',
+              ...gptrealtimePageOptions.map(p => {
+                const sel = p.path === cur ? ' selected' : '';
+                return '<option value="' + escAttr(p.path) + '"' + sel + '>' + escHtml(p.name || p.path) + '</option>';
+              })
+            ].join('');
+            targetCell = '<div class="flow-realtime-cell"><select class="flow-input" data-field="target-realtime-pick">' + pickOpts + '</select>' +
+              '<input class="flow-input" data-field="target-input" value="' + escAttr(cur) + '" placeholder="/setting/gptrealtime/live-transcript.html" style="margin-top:0.35rem;">' +
+              '<details class="flow-gpt-prompt-box"' + (hasPrompt ? ' open' : '') + '><summary>編輯畫面說明文字（選填，只顯示給施測者看）</summary>' +
+              '<textarea class="flow-input" data-field="gpt-prompt" rows="4" style="margin-top:0.35rem;resize:vertical;min-width:100%;box-sizing:border-box;">' + escHtml(prompt) + '</textarea></details></div>';
           } else {
             const cur = step.customPath || '';
             const pickOpts = [
@@ -224,6 +252,7 @@
                 <option value="instruction"${step.type === 'instruction' ? ' selected' : ''}>instruction</option>
                 <option value="custom"${step.type === 'custom' ? ' selected' : ''}>custom</option>
                 <option value="gptfeedback"${step.type === 'gptfeedback' ? ' selected' : ''}>gptfeedback</option>
+                <option value="gptrealtime"${step.type === 'gptrealtime' ? ' selected' : ''}>gptrealtime</option>
               </select>
             </td>
             <td>${targetCell}</td>
@@ -251,8 +280,8 @@
           base.customPath = target || undefined;
           base.refKey = undefined;
           base.gptPrompt = undefined;
-        } else if (type === 'gptfeedback') {
-          const wrap = tr.querySelector('.flow-gpt-cell');
+        } else if (type === 'gptfeedback' || type === 'gptrealtime') {
+          const wrap = tr.querySelector(type === 'gptrealtime' ? '.flow-realtime-cell' : '.flow-gpt-cell');
           const targetInput = wrap && wrap.querySelector('input[data-field="target-input"]');
           const ta = wrap && wrap.querySelector('textarea[data-field="gpt-prompt"]');
           const p = targetInput ? targetInput.value.trim() : '';
@@ -332,6 +361,13 @@
         if (inp) inp.value = gptPick.value;
         return;
       }
+      const realtimePick = e.target.closest('select[data-field="target-realtime-pick"]');
+      if (realtimePick && realtimePick.value) {
+        const cell = realtimePick.closest('.flow-realtime-cell');
+        const inp = cell && cell.querySelector('input[data-field="target-input"]');
+        if (inp) inp.value = realtimePick.value;
+        return;
+      }
       const sel = e.target.closest('select[data-field="type"]');
       if (!sel) return;
       syncFromDom();
@@ -342,6 +378,12 @@
         const idx = parseInt(sel.closest('tr').dataset.index, 10);
         if (!Number.isNaN(idx) && steps[idx] && !steps[idx].customPath) {
           steps[idx].customPath = pickDefaultGptHtmlPath();
+        }
+      } else if (sel.value === 'gptrealtime') {
+        await loadGptrealtimePages();
+        const idx = parseInt(sel.closest('tr').dataset.index, 10);
+        if (!Number.isNaN(idx) && steps[idx] && !steps[idx].customPath) {
+          steps[idx].customPath = pickDefaultRealtimeHtmlPath();
         }
       }
       setPageListsHint();
@@ -355,10 +397,10 @@
         if (k.length > 120) {
           return '第 ' + (i + 1) + ' 步的「步驟 key」過長，請用簡短名稱（如 step3），不要貼整段提示詞。';
         }
-        if (s.type === 'gptfeedback' && s.customPath) {
+        if ((s.type === 'gptfeedback' || s.type === 'gptrealtime') && s.customPath) {
           const p = String(s.customPath).trim();
           if (p && p.indexOf('/') !== 0) {
-            return '第 ' + (i + 1) + ' 步 (gptfeedback)：路徑欄須以 / 開頭（如 /setting/gptfeedback/vr-uid-gpt.html）。送 GPT 的內文請寫在「編輯 GPT 提示詞」，不要貼在路徑欄。';
+            return '第 ' + (i + 1) + ' 步 (' + s.type + ')：路徑欄須以 / 開頭（如 /setting/' + s.type + '/xxx.html）。長段內文請寫在「編輯' + (s.type === 'gptrealtime' ? '畫面說明文字' : ' GPT 提示詞') + '」，不要貼在路徑欄。';
           }
         }
       }
@@ -444,12 +486,13 @@
     function setPageListsHint() {
       const el = document.getElementById('custom-detect-hint');
       if (!el) return;
-      const hasErr = !!(customPageListError || gptPageListError);
+      const hasErr = !!(customPageListError || gptPageListError || gptRealtimePageListError);
       el.style.color = hasErr ? '#b91c1c' : '';
       if (hasErr) {
         const parts = [];
         if (customPageListError) parts.push('【自訂 ' + 'public/custom' + '】' + customPageListError);
         if (gptPageListError) parts.push('【GPT ' + 'public/gptfeedback' + '】' + gptPageListError);
+        if (gptRealtimePageListError) parts.push('【即時語音 ' + 'public/gptrealtime' + '】' + gptRealtimePageListError);
         el.textContent = parts.join(' ');
         return;
       }
@@ -459,7 +502,10 @@
       const b = !gptfeedbackPageOptions.length
         ? 'GPT（public/gptfeedback）：未掃到 .html。'
         : 'GPT（public/gptfeedback）：' + gptfeedbackPageOptions.length + ' 個。';
-      el.textContent = a + ' ' + b;
+      const c = !gptrealtimePageOptions.length
+        ? '即時語音（public/gptrealtime）：未掃到 .html。'
+        : '即時語音（public/gptrealtime）：' + gptrealtimePageOptions.length + ' 個。';
+      el.textContent = a + ' ' + b + ' ' + c;
     }
 
     async function loadCustomPages() {
@@ -522,12 +568,43 @@
       }
     }
 
+    async function loadGptrealtimePages() {
+      gptRealtimePageListError = '';
+      try {
+        const r = await fetch(apiBase + '/gptrealtime-pages', { cache: 'no-store' });
+        if (!r.ok) {
+          gptrealtimePageOptions = [];
+          gptRealtimePageListError = '清單讀取失敗（HTTP ' + r.status + '）。若剛加 API，請**重啟** Node 後再試。';
+          return;
+        }
+        let d;
+        try {
+          d = await r.json();
+        } catch {
+          gptrealtimePageOptions = [];
+          gptRealtimePageListError = '回傳內容不是有效 JSON。';
+          return;
+        }
+        if (d.success && Array.isArray(d.data)) {
+          gptrealtimePageOptions = d.data;
+        } else {
+          gptrealtimePageOptions = [];
+          gptRealtimePageListError = '清單格式異常。';
+        }
+      } catch (e) {
+        console.error(e);
+        gptrealtimePageOptions = [];
+        gptRealtimePageListError = '連線失敗：' + (e && e.message ? e.message : '不明錯誤') + '。';
+      }
+    }
+
     document.getElementById('btn-refresh-custom').addEventListener('click', async () => {
       syncFromDom();
       const hint = document.getElementById('custom-detect-hint');
       if (hint) hint.textContent = '掃描中…';
       await loadCustomPages();
       await loadGptfeedbackPages();
+      await loadGptrealtimePages();
       setPageListsHint();
       renderTable();
     });
@@ -536,6 +613,7 @@
       await loadOptions();
       await loadCustomPages();
       await loadGptfeedbackPages();
+      await loadGptrealtimePages();
       setPageListsHint();
       await loadFlow();
     });

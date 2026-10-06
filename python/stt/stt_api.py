@@ -59,6 +59,10 @@ DEVICE_PREFERENCE = os.environ.get("STT_DEVICE", "cuda")
 # 預設關閉：VAD 濾靜音第一次用會另外向 Hugging Face 下載模型，這台機器連線不穩會整個卡住；
 # Unity 錄音端已經有做過 RemoveSilentParts 去除靜音，伺服器端不需要再做一次。
 VAD_FILTER = os.environ.get("STT_VAD_FILTER", "0").strip().lower() in ("1", "true", "yes")
+# /transcribe/segments 專用：這支是轉整段 VR 錄音(computer/microphone wav，可能長達數十分鐘、
+# 中間有大段沒人講話)，跟單輪對話那種已經去過靜音的短音檔不同，VAD 濾靜音比較有幫助。
+# 預設沿用跟上面一樣的關閉行為(同樣要注意第一次開啟會另外下載 VAD 模型)，要開就設這個環境變數。
+SEGMENTS_VAD_FILTER = os.environ.get("STT_SEGMENTS_VAD_FILTER", "0").strip().lower() in ("1", "true", "yes")
 
 _model = None
 _model_info = {}
@@ -106,7 +110,7 @@ def root():
     return {
         "status": "ok",
         "service": "Local STT API (faster-whisper)",
-        "endpoints": ["/health", "/transcribe (POST)", "/docs"],
+        "endpoints": ["/health", "/transcribe (POST)", "/transcribe/segments (POST)", "/docs"],
     }
 
 
@@ -147,6 +151,48 @@ async def transcribe(file: UploadFile = File(...)):
         return {
             "status": "ok",
             "text": text,
+            "language": info.language,
+            "language_probability": info.language_probability,
+        }
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"status": "error", "error": str(exc)})
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+
+@app.post("/transcribe/segments")
+async def transcribe_segments(file: UploadFile = File(...)):
+    """整段錄音逐句(含每句起訖秒數)。給 video-review 複盤頁把整段 computer/microphone wav
+    轉成逐句字幕、存進資料庫用。跟上面 /transcribe（單輪對話、只要合併文字，供即時語音對話用）
+    分開一支路由，不動到既有行為；這支可能處理長達數十分鐘的音檔，比較耗時。"""
+    suffix = ".wav"
+    if file.filename and "." in file.filename:
+        ext = file.filename.rsplit(".", 1)[-1].lower()
+        if ext in ("wav", "mp3", "m4a", "ogg", "flac", "webm"):
+            suffix = f".{ext}"
+
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
+
+    try:
+        model = get_model()
+        segments, info = model.transcribe(
+            tmp_path,
+            language=(LANGUAGE or None),
+            vad_filter=SEGMENTS_VAD_FILTER,
+        )
+        result_segments = [
+            {"text": seg.text.strip(), "start": round(seg.start, 3), "end": round(seg.end, 3)}
+            for seg in segments
+            if seg.text and seg.text.strip()
+        ]
+        return {
+            "status": "ok",
+            "segments": result_segments,
             "language": info.language,
             "language_probability": info.language_probability,
         }

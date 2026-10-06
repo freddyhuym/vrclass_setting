@@ -208,7 +208,9 @@
       { type: 'emotion_feedback', collection: 'emotionfeedbacks' },
       { type: 'decision', collection: 'decisionrecords' },
       { type: 'physiological', collection: 'physiologicals' },
-      { type: 'vr_conversation', collection: 'vrconversations' }
+      { type: 'vr_conversation', collection: 'vrconversations' },
+      { type: 'live_transcript', collection: 'livetranscriptsegments' },
+      { type: 'video_review_transcript', collection: 'videoreviewtranscriptsegments' }
     ];
     const VR_COLLECTIONS = [
       'event_lookingdatas',
@@ -229,9 +231,11 @@
     let rawRows = [];
     let page = 1;
 
-    /** 第 2 欄標題依 collection 而異：survey_final_answer 顯示「問卷頁面」，其餘（含 vr_conversation）顯示「關卡名稱」 */
+    /** 第 2 欄標題依 collection 而異：survey_final_answer 顯示「問卷頁面」，video_review_transcript 顯示「音軌」，其餘（含 vr_conversation）顯示「關卡名稱」 */
     function levelColumnLabel() {
-      return selectedType === 'survey_final_answer' ? '問卷頁面' : '關卡名稱';
+      if (selectedType === 'survey_final_answer') return '問卷頁面';
+      if (selectedType === 'video_review_transcript') return '音軌';
+      return '關卡名稱';
     }
     function theadLab() {
       return `
@@ -240,6 +244,18 @@
           <th style="width: 14%;">${levelColumnLabel()}</th>
           <th style="width: 58%;">Main Content</th>
           <th style="width: 14%;">Created At</th>
+        </tr>`;
+    }
+    /** video_review_transcript 專用欄位：檔案名稱、起始/終止各自獨立一欄，方便直接看/排序，不塞進一句 Main Content。 */
+    function theadVideoReviewTranscript() {
+      return `
+        <tr>
+          <th style="width: 8%;">受試者編號(UID)</th>
+          <th style="width: 14%;">檔案名稱</th>
+          <th style="width: 8%;">起始(秒)</th>
+          <th style="width: 8%;">終止(秒)</th>
+          <th style="width: 10%;">音軌</th>
+          <th style="width: 52%;">內容</th>
         </tr>`;
     }
     const THEAD_VR = `
@@ -288,7 +304,8 @@
           dataMode = 'lab';
           selectedType = card.dataset.type;
           page = 1;
-          document.getElementById('thead').innerHTML = theadLab();
+          document.getElementById('thead').innerHTML =
+            selectedType === 'video_review_transcript' ? theadVideoReviewTranscript() : theadLab();
           loadRows();
         });
       });
@@ -351,8 +368,18 @@
     /** Main Content：change 事件僅顯示欄位／題目名稱 */
     function formatMainContent(row) {
       const ev = row.eventName || row.action || '';
+      if (row.type === 'live_transcript') {
+        const seq = Number.isFinite(Number(row.seq)) ? '第' + row.seq + '句：' : '';
+        return seq + (row.text || '');
+      }
+      if (row.type === 'video_review_transcript') {
+        const fmt = (s) => Number.isFinite(Number(s)) ? Number(s).toFixed(2) + '秒' : '?';
+        const tag = '[第' + (Number(row.seq) + 1) + '句｜' + fmt(row.startSec) + '~' + fmt(row.endSec) + '] ';
+        return tag + (row.text || '');
+      }
       if (row.type === 'vr_conversation' || row.sttText != null || row.gptResponseText != null) {
         const parts = [];
+        if (row.studentName) parts.push('問題學生:' + row.studentName);
         if (row.voiceArousal != null) parts.push('喚醒度' + Number(row.voiceArousal).toFixed(2));
         if (row.textSentiment) parts.push('情緒:' + row.textSentiment);
         const tag = parts.length ? '[' + parts.join('｜') + '] ' : '';
@@ -386,6 +413,12 @@
       if (row.type === 'survey_final_answer') {
         return row.surveyName || row.stepKey || row.pageName || row.pagePath || '—';
       }
+      if (row.type === 'live_transcript') {
+        return row.levelName || row.stepKey || row.experimentCode || '—';
+      }
+      if (row.type === 'video_review_transcript') {
+        return row.source === 'computer' ? '電腦/AI' : row.source === 'microphone' ? '受試者麥克風' : (row.source || '—');
+      }
       return row.levelName || row.experimentCode || '—';
     }
 
@@ -396,6 +429,12 @@
       let rows = rawRows.slice();
       if (keyword) {
         rows = rows.filter(r => JSON.stringify(r).toLowerCase().includes(keyword));
+      }
+      // 對話要按音軌裡的起始時間排序（不管上面 sortField/sortDir 選什麼），這樣 computer/microphone
+      // 兩軌交錯出來才是一來一往的對話順序，不是依 createdAt(轉錄完成時間，跟講話順序無關)排。
+      if (selectedType === 'video_review_transcript') {
+        rows.sort((a, b) => (Number(a.startSec) || 0) - (Number(b.startSec) || 0));
+        return rows;
       }
       rows.sort((a, b) => {
         if (dataMode === 'vr') {
@@ -427,7 +466,7 @@
     function csvColumnsForRows(rows) {
       const preferred = dataMode === 'vr'
         ? ['_id', 'uid', 'mission_id', 'event_id', 'function_name', 'createdAt', 'updatedAt', 'eye_tracking', 'pupil_radius']
-        : ['_id', 'userId', 'levelName', 'experimentCode', 'sessionId', 'stepKey', 'pageName', 'pagePath', 'contentName', 'surveyName', 'studentName', 'eventName', 'action', 'questionTitle', 'targetText', 'beforeValue', 'afterValue', 'timestamp', 'createdAt', 'updatedAt'];
+        : ['_id', 'userId', 'uid', 'levelName', 'experimentCode', 'sessionId', 'stepKey', 'pageName', 'pagePath', 'contentName', 'surveyName', 'studentName', 'eventName', 'action', 'questionTitle', 'targetText', 'beforeValue', 'afterValue', 'source', 'seq', 'text', 'startSec', 'endSec', 'noSpeechProb', 'avgLogprob', 'timestamp', 'createdAt', 'updatedAt'];
       const keys = new Set();
       rows.forEach((row) => Object.keys(row || {}).forEach((key) => keys.add(key)));
       const columns = preferred.filter((key) => keys.has(key));
@@ -500,11 +539,28 @@
         </tr>
       `).join('');
         document.getElementById('summary').textContent = `${rows.length} ${selectedVr} 筆（可關鍵字篩選）`;
+      } else if (selectedType === 'video_review_transcript') {
+        const fmtSec = (s) => Number.isFinite(Number(s)) ? Number(s).toFixed(2) : '';
+        document.getElementById('rows').innerHTML = current.map(r => {
+          const track = r.source === 'computer' ? '電腦/AI' : r.source === 'microphone' ? '受試者麥克風' : (r.source || '—');
+          const file = r.fileName || ((r.source || '') + (r.uid != null ? r.uid : '') + '.wav');
+          return `
+        <tr>
+          <td>${esc(r.uid != null ? r.uid : '-')}</td>
+          <td class="mono">${esc(file)}</td>
+          <td class="mono">${esc(fmtSec(r.startSec))}</td>
+          <td class="mono">${esc(fmtSec(r.endSec))}</td>
+          <td>${esc(track)}</td>
+          <td>${esc(r.text || '')}</td>
+        </tr>
+      `;
+        }).join('');
+        document.getElementById('summary').textContent = `${rows.length} 筆 · videoreviewtranscriptsegments（依起始時間排序）`;
       } else {
         document.getElementById('rows').innerHTML = current.map(r => {
           return `
         <tr>
-          <td>${esc(r.userId || '-')}</td>
+          <td>${esc(r.userId || r.uid || '-')}</td>
           <td>${esc(getLevelName(r))}</td>
           <td>${esc(formatMainContent(r))}</td>
           <td>${pickDate(r) ? esc(new Date(pickDate(r)).toLocaleString()) : ''}</td>

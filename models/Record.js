@@ -110,7 +110,23 @@ const vrConversationSchema = new mongoose.Schema({
   sttText: String,
   voiceArousal: Number,
   textSentiment: String,
-  gptResponseText: String
+  gptResponseText: String,
+  // J 話輪結束標記：受試者按板機結束跟這位問題學生的對話時多存一筆，isSessionEnd=true、
+  // gptResponseText等欄位留空，endedBy記下是誰結束的("受試者"=AI這輪還沒講完就被打斷，
+  // "AI"=AI已經自然講完才按)。跟同一位學生前面那幾筆一般對話紀錄用studentName+timestamp
+  // 對照，就能看出「這個學生的對話是在哪一筆結束、結束在誰身上」。
+  isSessionEnd: { type: Boolean, default: false },
+  endedBy: String
+}, { timestamps: true });
+
+// 即時語音辨識逐字稿（gptrealtime 步驟：受試者／施測者對話，單一麥克風不分角色，
+// 每辨識完成一段語句就存一筆，seq 為該次錄音 session 內的先後順序）
+const liveTranscriptSegmentSchema = new mongoose.Schema({
+  ...baseRecordSchema,
+  type: { type: String, default: 'live_transcript' },
+  stepKey: String,
+  seq: Number,
+  text: { type: String, required: true }
 }, { timestamps: true });
 
 emotionFeedbackSchema.index({ userId: 1, timestamp: 1 });
@@ -122,6 +138,7 @@ webEventLogSchema.index({ userId: 1, sessionId: 1, timestamp: -1 });
 webEventLogSchema.index({ userId: 1, surveyId: 1, questionName: 1, timestamp: -1 });
 surveyFinalAnswerSchema.index({ userId: 1, sessionId: 1, submittedAt: -1 });
 vrConversationSchema.index({ userId: 1, timestamp: -1 });
+liveTranscriptSegmentSchema.index({ userId: 1, sessionId: 1, seq: 1 });
 
 module.exports = {
   EmotionFeedback: mongoose.model('EmotionFeedback', emotionFeedbackSchema),
@@ -131,5 +148,6 @@ module.exports = {
   ProcessLog: mongoose.model('ProcessLog', processLogSchema),
   WebEventLog: mongoose.model('WebEventLog', webEventLogSchema),
   SurveyFinalAnswer: mongoose.model('SurveyFinalAnswer', surveyFinalAnswerSchema),
-  VrConversation: mongoose.model('VrConversation', vrConversationSchema)
+  VrConversation: mongoose.model('VrConversation', vrConversationSchema),
+  LiveTranscriptSegment: mongoose.model('LiveTranscriptSegment', liveTranscriptSegmentSchema)
 };

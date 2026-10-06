@@ -100,12 +100,12 @@ router.post('/flow', async (req, res, next) => {
           message: `第 ${i + 1} 步的「步驟 key」過長。請用簡短識別碼（如 step3），不要貼上整段提示詞。`
         });
       }
-      if (s && s.type === 'gptfeedback' && s.customPath) {
+      if (s && (s.type === 'gptfeedback' || s.type === 'gptrealtime') && s.customPath) {
         const cp = String(s.customPath).trim();
         if (cp && !cp.startsWith('/')) {
           return res.status(400).json({
             success: false,
-            message: `第 ${i + 1} 步 (gptfeedback)：「對應路徑」須為 / 開頭的 HTML 位址（例：/setting/gptfeedback/vr-uid-gpt.html）。送 GPT 的長段內文請寫在 gptPrompt，不要貼在路徑欄。`
+            message: `第 ${i + 1} 步 (${s.type})：「對應路徑」須為 / 開頭的 HTML 位址（例：/setting/${s.type}/vr-uid-gpt.html）。長段內文請寫在 gptPrompt，不要貼在路徑欄。`
           });
         }
       }
@@ -225,6 +225,20 @@ router.delete('/steps/:key', async (req, res, next) => {
     const step = await ExperimentStep.findOneAndDelete({ key: req.params.key });
     if (!step) return res.status(404).json({ success: false, message: '找不到實驗步驟' });
     res.json({ success: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// 可選之即時語音辨識頁（與 custom、gptfeedback 分開，目錄 public/gptrealtime）
+router.get('/gptrealtime-pages', async (req, res, next) => {
+  try {
+    const list = await listPublicHtmlDir(
+      path.join(__dirname, '..', 'public', 'gptrealtime'),
+      '/setting/gptrealtime'
+    );
+    list.sort((a, b) => a.path.localeCompare(b.path, 'en'));
+    res.json({ success: true, data: list });
   } catch (e) {
     next(e);
   }

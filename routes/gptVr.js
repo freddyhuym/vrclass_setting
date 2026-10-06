@@ -1,6 +1,7 @@
 const express = require('express');
 const https = require('https');
 const { COLLECTIONS } = require('../models/vrLegacyData');
+const { VrConversation } = require('../models/Record');
 
 const router = express.Router();
 
@@ -8,7 +9,7 @@ const MAX_PER_COLLECTION = parseInt(process.env.GPT_VR_MAX_DOCS || '200', 10);
 const MAX_CONTEXT_CHARS = parseInt(process.env.GPT_VR_MAX_CONTEXT_CHARS || '80000', 10);
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
-function uidQuery(uid) {
+function idQuery(field, uid) {
   const s = String(uid).trim();
   if (!s) return null;
   const variants = [s];
@@ -16,7 +17,11 @@ function uidQuery(uid) {
   if (!Number.isNaN(n) && String(n) === s) {
     variants.push(n);
   }
-  return { uid: { $in: variants } };
+  return { [field]: { $in: variants } };
+}
+
+function uidQuery(uid) {
+  return idQuery('uid', uid);
 }
 
 function callOpenAIChat({ apiKey, system, user }) {
@@ -99,7 +104,7 @@ router.post('/analyze', async (req, res, next) => {
     const analysisPrompt = (req.body && req.body.prompt != null) ? String(req.body.prompt) : '';
     const userTask =
       analysisPrompt.trim() ||
-      '請綜合以下與此 uid 相關的 VR 教室上傳資料，分析學習與觀看／事件行為，以繁體中文條列重點、可觀察的趨勢，以及給教學者或受試者的簡短建議。若資料明顯不足請直接說明。';
+      '請綜合以下與此 uid 相關的 VR 教室資料（視線/指向/表單作答等事件記錄，以及與虛擬學生的語音對話歷程），分析學習與互動行為、對話應對表現，以繁體中文條列重點、可觀察的趨勢，以及給教學者或受試者的簡短建議。若資料明顯不足請直接說明。';
 
     const parts = [];
     const counts = {};
@@ -121,6 +126,31 @@ router.post('/analyze', async (req, res, next) => {
       parts.push(block);
     }
 
+    // 語音對話歷程（受試者說的話／虛擬學生GPT回覆），依時間先後排序，跟其餘事件記錄是不同 collection
+    const convQuery = idQuery('userId', uid);
+    const convTotal = await VrConversation.countDocuments(convQuery);
+    const convRows = await VrConversation.find(convQuery).sort({ timestamp: 1 }).limit(MAX_PER_COLLECTION).lean();
+    counts.vr_conversation = convTotal;
+    parts.push(
+      '### vr_conversation（語音對話歷程，依時間先後排序，本批帶入 ' +
+      convRows.length +
+      ' 筆，符合 uid 之總筆數約 ' +
+      convTotal +
+      '）\n' +
+      (convRows.length
+        ? convRows
+            .map((r, i) =>
+              '[#' + (i + 1) + '] ' +
+              (r.timestamp ? new Date(r.timestamp).toISOString() + ' ' : '') +
+              (r.studentName ? '(' + r.studentName + ') ' : '') +
+              '受試者:「' + (r.sttText || '') + '」 → 虛擬學生回覆:「' + (r.gptResponseText || '') + '」' +
+              (r.voiceArousal != null ? ' 聲音喚醒度=' + r.voiceArousal : '') +
+              (r.textSentiment ? ' 文字情緒=' + r.textSentiment : '')
+            )
+            .join('\n')
+        : '（此 uid 尚無語音對話紀錄）')
+    );
+
     let dataBundle = parts.join('\n\n');
     const rawLen = dataBundle.length;
     if (dataBundle.length > MAX_CONTEXT_CHARS) {
@@ -132,7 +162,7 @@ router.post('/analyze', async (req, res, next) => {
     }
 
     const system =
-      '你是協助教育科技與 IVR 教室研究的助理。只根據以下使用者提供之逐筆文件（JSON 字串）作推論，勿捏造未出現的欄位。若幾乎無資料，請清楚說明。回覆使用繁體中文。';
+      '你是協助教育科技與 IVR 教室研究的助理。只根據以下使用者提供的逐筆資料（含事件記錄 JSON 與對話歷程文字）作推論，不要提到或杜撰資料中未出現的欄位、數值或對話內容。若幾乎無資料，請清楚說明。回覆使用繁體中文。';
 
     const user =
       '任務與寫作風格：\n' +
