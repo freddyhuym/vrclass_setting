@@ -191,13 +191,32 @@ router.get('/review-timeline/:uid', async (req, res, next) => {
     const rows = await EventLookingData.find({ uid })
       .sort({ mission_time_sec: 1 })
       .lean();
-    const events = rows
+    const labels = rows
       .filter((r) => r.judge && String(r.judge).trim())
-      .map((r, i) => ({
-        id: i + 1,
+      .map((r) => ({
         content: String(r.judge).trim(),
         mission_time_sec: Number(r.mission_time_sec) || 0
       }));
+    // 「學生N開始」到下一位「學生N開始」之間都沒有「覺察正確」= 這位學生被漏掉了，
+    // 在下一位學生開始前補一個「未覺察」標籤（Unity 端不另外送）。
+    const isStudentStart = (c) => /^學生\d+開始/.test(c);
+    const missed = [];
+    labels.forEach((l, i) => {
+      if (!isStudentStart(l.content)) return;
+      const next = labels.findIndex((n, j) => j > i && isStudentStart(n.content));
+      if (next < 0) return;
+      const between = labels.slice(i + 1, next);
+      if (!between.some((b) => b.content === '覺察正確')) {
+        missed.push({
+          content: '未覺察',
+          mission_time_sec: Math.max(l.mission_time_sec, labels[next].mission_time_sec - 0.5)
+        });
+      }
+    });
+    const events = labels
+      .concat(missed)
+      .sort((a, b) => a.mission_time_sec - b.mission_time_sec)
+      .map((l, i) => ({ id: i + 1, ...l }));
     res.json({ success: true, data: events });
   } catch (e) {
     next(e);

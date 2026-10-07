@@ -15,12 +15,17 @@ function makeLegacySchema() {
 
 // Unity Select_QA.cs / VR_Controler_Manager.cs 透過 UDTN_Event 送出（QA_Panel 表單答案，專用 collection）
 const eventDataSchema = new Schema({
+  // 2026-10-07 起：一題一筆，一個事件(event_id = 一位學生)會有 5 筆
+  //   1 覺察(拉桿 0~100) 2 焦慮(拉桿) 3 生氣(拉桿) 4 挑釁性(拉桿) 5 整體心力(選擇題 1~9)
+  //   (介面模式三沒有第 1 題；題目文字依 學生行為.csv 而定)
   uid: String,          // 受試者編號
+  mission_id: String,   // 關卡名稱（與 script_name 相同）
+  event_id: String,     // 第幾個事件 = 第幾位學生
   track: String,        // 第幾軌道
   script_name: String,  // 關卡/劇本名稱
   find_time: String,
-  question: String,     // 目前實際傳入的是識別字串，非題目文字本身
-  ans: String,           // 作答內容
+  question: String,     // 畫面上顯示的題目文字（舊資料是「4-0-第二題 - 結束」這類識別字串）
+  ans: String,           // 作答數值：拉桿 0~100，最後一題選擇題 1~9
   ans_options: String,   // 選項清單
   ans_time: String,      // 作答花費時間
   mission_time: String,  // 遊戲總經過時間
